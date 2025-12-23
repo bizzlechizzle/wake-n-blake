@@ -17,7 +17,7 @@ import { detectSourceDevice, getSourceType, formatDeviceInfo } from '../../servi
 import type { XmpSidecarData, CustodyEvent } from '../../services/xmp/schema.js';
 import { SCHEMA_VERSION } from '../../services/xmp/schema.js';
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 export const sidecarCommand = new Command('sidecar')
   .description('XMP sidecar operations')

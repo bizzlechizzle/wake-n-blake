@@ -21,7 +21,7 @@ import type {
 } from './schemas.js';
 import type { XmpSidecar, CustodyEvent } from '../../schemas/index.js';
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 /**
  * Enrich files with GPS coordinates from a reference map

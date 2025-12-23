@@ -8,7 +8,7 @@ import * as path from 'node:path';
 import { hashFile } from '../../core/hasher.js';
 import type { BagItAlgorithm, BagItOptions, BagItResult, BagItVerifyResult } from './schemas.js';
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 /**
  * Format bytes as human-readable size

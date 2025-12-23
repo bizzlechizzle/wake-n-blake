@@ -24,7 +24,7 @@ import { gpsCommand } from './commands/gps.js';
 import { phashCommand } from './commands/phash.js';
 import { mhlCommand } from './commands/mhl.js';
 
-const VERSION = '0.1.0';
+const VERSION = '0.1.1';
 
 export function createCli(): Command {
   const program = new Command();
