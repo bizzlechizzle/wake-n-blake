@@ -308,5 +308,11 @@ export async function cleanup(): Promise<void> {
   await exiftool.closeExifTool();
 }
 
+/**
+ * Write full metadata JSON dump to file
+ * Re-exported from exiftool wrapper for convenience
+ */
+export const writeFullMetadataJson = exiftool.writeFullMetadataJson;
+
 // Re-export individual extractors for direct access
 export { exiftool, ffprobe, mediainfo };

@@ -14,7 +14,7 @@ import type { Manifest, ManifestEntry } from '../schemas/index.js';
 import { detectFileType, isSidecarFile, isSkippedFile } from './file-type/detector.js';
 import { writeSidecar } from './xmp/writer.js';
 import { detectSourceDevice, getSourceType } from './device/index.js';
-import { extractMetadata, cleanup as cleanupMetadata } from './metadata/index.js';
+import { extractMetadata, cleanup as cleanupMetadata, exiftool } from './metadata/index.js';
 import { findRelatedFiles, isPrimaryFile } from './related-files/index.js';
 import type { XmpSidecarData, CustodyEvent, ImportSourceDevice, SourceType, FileCategory } from './xmp/schema.js';
 import { SCHEMA_VERSION } from './xmp/schema.js';
@@ -533,16 +533,28 @@ export async function runImport(
             eventCount: 1
           };
 
-          // Add type-specific metadata
+          // Add type-specific metadata (extractMetadata returns { photo?, video?, audio?, document? })
           if (file.metadata) {
-            if (file.category === 'photo' || file.category === 'image') {
-              sidecarData.photo = file.metadata as XmpSidecarData['photo'];
-            } else if (file.category === 'video') {
-              sidecarData.video = file.metadata as XmpSidecarData['video'];
-            } else if (file.category === 'audio') {
-              sidecarData.audio = file.metadata as XmpSidecarData['audio'];
-            } else if (file.category === 'document') {
-              sidecarData.document = file.metadata as XmpSidecarData['document'];
+            const meta = file.metadata as Record<string, unknown>;
+            if ((file.category === 'photo' || file.category === 'image') && meta.photo) {
+              sidecarData.photo = meta.photo as XmpSidecarData['photo'];
+            } else if (file.category === 'video' && meta.video) {
+              sidecarData.video = meta.video as XmpSidecarData['video'];
+            } else if (file.category === 'audio' && meta.audio) {
+              sidecarData.audio = meta.audio as XmpSidecarData['audio'];
+            } else if (file.category === 'document' && meta.document) {
+              sidecarData.document = meta.document as XmpSidecarData['document'];
+            }
+          }
+
+          // Extract and add raw metadata (complete exiftool dump) for media files
+          const category = file.category;
+          if (category && ['image', 'photo', 'video', 'audio'].includes(category)) {
+            try {
+              const rawMeta = await exiftool.extractAllMetadata(file.destPath);
+              sidecarData.rawMetadata = rawMeta;
+            } catch {
+              // Raw metadata extraction is optional, continue without it
             }
           }
 

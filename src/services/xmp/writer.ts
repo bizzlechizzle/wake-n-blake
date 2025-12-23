@@ -209,6 +209,43 @@ export function generateXmpContent(data: XmpSidecarData): string {
     if (d.pdfVersion) lines.push(`      <wnb:PDFVersion>${escapeXml(d.pdfVersion)}</wnb:PDFVersion>`);
   }
 
+  // Raw/Extended metadata (complete exiftool dump)
+  if (data.rawMetadata && Object.keys(data.rawMetadata).length > 0) {
+    lines.push('');
+    lines.push('      <!-- Extended Metadata (Complete ExifTool Dump) -->');
+    lines.push('      <wnb:ExtendedMetadata>');
+    lines.push('        <rdf:Bag>');
+
+    for (const [key, value] of Object.entries(data.rawMetadata)) {
+      if (value === undefined || value === null) continue;
+
+      // Skip binary data placeholders and internal exiftool fields
+      if (typeof value === 'string' && value.startsWith('(Binary data')) continue;
+      if (key === 'SourceFile' || key === 'Directory') continue;
+
+      // Format the value appropriately
+      let formattedValue: string;
+      if (typeof value === 'object') {
+        // Handle objects (like ExifDateTime) by converting to string
+        if ('toISOString' in value && typeof (value as { toISOString: () => string }).toISOString === 'function') {
+          formattedValue = (value as { toISOString: () => string }).toISOString();
+        } else {
+          formattedValue = JSON.stringify(value);
+        }
+      } else {
+        formattedValue = String(value);
+      }
+
+      lines.push(`          <rdf:li rdf:parseType="Resource">`);
+      lines.push(`            <wnb:Key>${escapeXml(key)}</wnb:Key>`);
+      lines.push(`            <wnb:Value>${escapeXml(formattedValue)}</wnb:Value>`);
+      lines.push(`          </rdf:li>`);
+    }
+
+    lines.push('        </rdf:Bag>');
+    lines.push('      </wnb:ExtendedMetadata>');
+  }
+
   // Chain of custody
   lines.push('');
   lines.push('      <!-- Chain of Custody -->');

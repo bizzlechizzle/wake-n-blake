@@ -6,6 +6,7 @@
  */
 
 import { ExifTool } from 'exiftool-vendored';
+import * as fs from 'node:fs/promises';
 
 // Use a flexible type for tag access since the strict Tags type doesn't include all possible properties
 type FlexibleTags = Record<string, unknown>;
@@ -48,6 +49,36 @@ export async function closeExifTool(): Promise<void> {
 export async function extractAllMetadata(filePath: string): Promise<FlexibleTags> {
   const exif = getExifTool();
   return exif.read(filePath) as unknown as FlexibleTags;
+}
+
+/**
+ * Write full metadata JSON dump to file
+ * Creates a .meta.json file next to the source file with complete exiftool output
+ */
+export async function writeFullMetadataJson(filePath: string): Promise<string> {
+  const tags = await extractAllMetadata(filePath);
+
+  // Clean up the tags for JSON output - convert non-serializable values
+  const cleanTags: FlexibleTags = {};
+  for (const [key, value] of Object.entries(tags)) {
+    if (value === undefined || value === null) continue;
+
+    // Handle ExifDateTime objects
+    if (typeof value === 'object' && value !== null && 'toISOString' in value && typeof (value as { toISOString: () => string }).toISOString === 'function') {
+      cleanTags[key] = (value as { toISOString: () => string }).toISOString();
+    } else if (Buffer.isBuffer(value)) {
+      // Skip binary buffers, indicate they exist
+      cleanTags[key] = `(Binary data ${value.length} bytes)`;
+    } else {
+      cleanTags[key] = value;
+    }
+  }
+
+  const outputPath = `${filePath}.meta.json`;
+  const jsonContent = JSON.stringify([cleanTags], null, 2);
+  await fs.writeFile(outputPath, jsonContent, 'utf-8');
+
+  return outputPath;
 }
 
 /**

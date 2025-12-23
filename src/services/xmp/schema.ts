@@ -354,11 +354,14 @@ export interface XmpSidecarData {
   inheritedSidecar?: string;
   inheritedSidecarFormat?: 'xmp' | 'json' | 'xml';
 
-  // Category-specific metadata
+  // Category-specific metadata (curated)
   photo?: PhotoMetadata;
   video?: VideoMetadata;
   audio?: AudioMetadata;
   document?: DocumentMetadata;
+
+  // Raw exiftool metadata (complete dump - all fields)
+  rawMetadata?: Record<string, unknown>;
 
   // Cloud/download provenance
   downloadURL?: string;
