@@ -25,12 +25,22 @@ export const Sha512HashSchema = z.string()
   .length(128)
   .regex(/^[a-f0-9]+$/, 'Must be 128 lowercase hex characters');
 
+export const Md5HashSchema = z.string()
+  .length(32)
+  .regex(/^[a-f0-9]+$/, 'Must be 32 lowercase hex characters');
+
+export const Xxhash64HashSchema = z.string()
+  .length(16)
+  .regex(/^[a-f0-9]+$/, 'Must be 16 lowercase hex characters');
+
 // Union for any supported hash
 export const AnyHashSchema = z.union([
   Blake3HashSchema,
   Blake3FullHashSchema,
   Sha256HashSchema,
-  Sha512HashSchema
+  Sha512HashSchema,
+  Md5HashSchema,
+  Xxhash64HashSchema
 ]);
 
 // ============================================
@@ -56,7 +66,7 @@ export const AnyIdSchema = z.union([
 // ALGORITHM & FORMAT SCHEMAS
 // ============================================
 
-export const AlgorithmSchema = z.enum(['blake3', 'blake3-full', 'sha256', 'sha512']);
+export const AlgorithmSchema = z.enum(['blake3', 'blake3-full', 'sha256', 'sha512', 'md5', 'xxhash64']);
 
 export const OutputFormatSchema = z.enum(['text', 'json', 'csv', 'bsd', 'sfv']);
 
@@ -449,6 +459,8 @@ export type Blake3Hash = z.infer<typeof Blake3HashSchema>;
 export type Blake3FullHash = z.infer<typeof Blake3FullHashSchema>;
 export type Sha256Hash = z.infer<typeof Sha256HashSchema>;
 export type Sha512Hash = z.infer<typeof Sha512HashSchema>;
+export type Md5Hash = z.infer<typeof Md5HashSchema>;
+export type Xxhash64Hash = z.infer<typeof Xxhash64HashSchema>;
 export type Blake3Id = z.infer<typeof Blake3IdSchema>;
 export type Uuid = z.infer<typeof UuidSchema>;
 export type Ulid = z.infer<typeof UlidSchema>;
@@ -487,7 +499,8 @@ export type XmpSidecar = z.infer<typeof XmpSidecarSchema>;
  */
 export function detectAlgorithm(hash: string): Algorithm | null {
   const len = hash.length;
-  if (len === 16 && /^[a-f0-9]+$/.test(hash)) return 'blake3';
+  if (len === 16 && /^[a-f0-9]+$/.test(hash)) return 'blake3'; // or xxhash64
+  if (len === 32 && /^[a-f0-9]+$/.test(hash)) return 'md5';
   if (len === 64 && /^[a-f0-9]+$/.test(hash)) return 'sha256'; // or blake3-full
   if (len === 128 && /^[a-f0-9]+$/.test(hash)) return 'sha512';
   return null;
@@ -502,7 +515,9 @@ export function isValidHash(hash: string, algorithm?: Algorithm): boolean {
       'blake3': Blake3HashSchema,
       'blake3-full': Blake3FullHashSchema,
       'sha256': Sha256HashSchema,
-      'sha512': Sha512HashSchema
+      'sha512': Sha512HashSchema,
+      'md5': Md5HashSchema,
+      'xxhash64': Xxhash64HashSchema
     }[algorithm];
     return schema.safeParse(hash).success;
   }

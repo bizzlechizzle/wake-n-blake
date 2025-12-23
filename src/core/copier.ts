@@ -220,6 +220,11 @@ function createHasher(algorithm: Algorithm): Hasher {
       return cryptoHash('sha256');
     case 'sha512':
       return cryptoHash('sha512');
+    case 'md5':
+      return cryptoHash('md5');
+    case 'xxhash64':
+      // xxhash64 is not typically used during copy, fall back to blake3
+      return blake3Hash() as unknown as Hasher;
   }
 }
 
@@ -228,7 +233,7 @@ function createHasher(algorithm: Algorithm): Hasher {
  */
 function finalizeHash(hasher: Hasher, algorithm: Algorithm): string {
   const hex = hasher.digest('hex');
-  if (algorithm === 'blake3') {
+  if (algorithm === 'blake3' || algorithm === 'xxhash64') {
     return hex.slice(0, 16);
   }
   return hex;

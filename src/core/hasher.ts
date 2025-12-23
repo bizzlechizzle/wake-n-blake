@@ -7,6 +7,8 @@ import * as fs from 'node:fs';
 import * as fsp from 'node:fs/promises';
 import * as crypto from 'node:crypto';
 import { createHash as createBlake3Hash } from 'blake3';
+import xxhashAddon from 'xxhash-addon';
+const { XXHash64 } = xxhashAddon;
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Algorithm, HashResult } from '../schemas/index.js';
@@ -186,6 +188,40 @@ export async function hashSha512(filePath: string): Promise<string> {
 }
 
 /**
+ * Calculate MD5 hash (legacy, for MHL compatibility)
+ */
+export async function hashMd5(filePath: string): Promise<string> {
+  const bufferSize = getBufferSize(filePath);
+  const hasher = crypto.createHash('md5');
+
+  const stream = fs.createReadStream(filePath, { highWaterMark: bufferSize });
+
+  for await (const chunk of stream) {
+    hasher.update(chunk);
+  }
+
+  return hasher.digest('hex').toLowerCase();
+}
+
+/**
+ * Calculate xxHash64 hash (fast, for MHL compatibility)
+ */
+export async function hashXxhash64(filePath: string): Promise<string> {
+  const bufferSize = getBufferSize(filePath);
+  // XXHash64 requires a seed buffer (8 bytes for 64-bit seed, use zeros)
+  const seed = Buffer.alloc(8);
+  const hasher = new XXHash64(seed);
+
+  const stream = fs.createReadStream(filePath, { highWaterMark: bufferSize });
+
+  for await (const chunk of stream) {
+    hasher.update(chunk);
+  }
+
+  return hasher.digest().toString('hex').toLowerCase();
+}
+
+/**
  * Calculate hash using specified algorithm
  */
 export async function hashFile(
@@ -210,6 +246,12 @@ export async function hashFile(
     case 'sha512':
       hash = await hashSha512(filePath);
       break;
+    case 'md5':
+      hash = await hashMd5(filePath);
+      break;
+    case 'xxhash64':
+      hash = await hashXxhash64(filePath);
+      break;
     default:
       throw new Error(`Unknown algorithm: ${algorithm}`);
   }
@@ -233,6 +275,8 @@ export async function hashFileAll(filePath: string): Promise<{
   'blake3-full': string;
   sha256: string;
   sha512: string;
+  md5: string;
+  xxhash64: string;
   size: number;
   durationMs: number;
 }> {
@@ -244,6 +288,9 @@ export async function hashFileAll(filePath: string): Promise<{
   const blake3Hasher = createBlake3Hash();
   const sha256Hasher = crypto.createHash('sha256');
   const sha512Hasher = crypto.createHash('sha512');
+  const md5Hasher = crypto.createHash('md5');
+  const xxhash64Seed = Buffer.alloc(8);
+  const xxhash64Hasher = new XXHash64(xxhash64Seed);
 
   const stream = fs.createReadStream(filePath, { highWaterMark: bufferSize });
 
@@ -251,6 +298,8 @@ export async function hashFileAll(filePath: string): Promise<{
     blake3Hasher.update(chunk);
     sha256Hasher.update(chunk);
     sha512Hasher.update(chunk);
+    md5Hasher.update(chunk);
+    xxhash64Hasher.update(chunk);
   }
 
   const blake3Full = blake3Hasher.digest('hex').toLowerCase();
@@ -260,6 +309,8 @@ export async function hashFileAll(filePath: string): Promise<{
     'blake3-full': blake3Full,
     sha256: sha256Hasher.digest('hex').toLowerCase(),
     sha512: sha512Hasher.digest('hex').toLowerCase(),
+    md5: md5Hasher.digest('hex').toLowerCase(),
+    xxhash64: xxhash64Hasher.digest().toString('hex').toLowerCase(),
     size: stats.size,
     durationMs: performance.now() - startTime
   };
@@ -294,7 +345,10 @@ export async function verifyFile(
   if (!algorithm) {
     switch (expectedHash.length) {
       case 16:
-        algorithm = 'blake3';
+        algorithm = 'blake3'; // Could also be xxhash64 - use explicit algorithm if needed
+        break;
+      case 32:
+        algorithm = 'md5';
         break;
       case 64:
         algorithm = 'sha256'; // Could also be blake3-full

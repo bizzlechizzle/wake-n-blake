@@ -16,7 +16,7 @@ import type { Algorithm, HashResult } from '../../schemas/index.js';
 export const hashCommand = new Command('hash')
   .description('Compute BLAKE3 hash of files (default) or use other algorithms')
   .argument('<path>', 'File or directory to hash')
-  .option('-a, --algorithm <alg>', 'Algorithm: blake3 (default), sha256, sha512, all', 'blake3')
+  .option('-a, --algorithm <alg>', 'Algorithm: blake3 (default), sha256, sha512, md5, xxhash64, all', 'blake3')
   .option('--all', 'Compute all algorithms (shorthand for -a all)')
   .option('-r, --recursive', 'Hash directories recursively')
   .option('--full', 'Full 256-bit output (64 hex chars) for BLAKE3')

@@ -38,8 +38,10 @@
     "ignore": "^6.0.2",
     "ora": "^8.1.1",
     "p-queue": "^8.0.1",
+    "sharp": "^0.33.5",
     "ulid": "^2.3.0",
     "uuid": "^11.0.3",
+    "xxhash-addon": "^2.0.3",
     "zod": "^3.24.1"
   },
   "devDependencies": {

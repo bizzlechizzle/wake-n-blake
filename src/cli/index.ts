@@ -19,6 +19,10 @@ import { fastCommand } from './commands/fast.js';
 import { sidecarCommand } from './commands/sidecar.js';
 import { deviceCommand } from './commands/device.js';
 import { metaCommand } from './commands/meta.js';
+import { bagitCommand } from './commands/bagit.js';
+import { gpsCommand } from './commands/gps.js';
+import { phashCommand } from './commands/phash.js';
+import { mhlCommand } from './commands/mhl.js';
 
 const VERSION = '0.1.0';
 
@@ -57,6 +61,16 @@ export function createCli(): Command {
   program.addCommand(sidecarCommand);
   program.addCommand(deviceCommand);
   program.addCommand(metaCommand);
+
+  // Archival & Post-production
+  program.addCommand(bagitCommand);
+  program.addCommand(mhlCommand);
+
+  // GPS utilities
+  program.addCommand(gpsCommand);
+
+  // Perceptual hashing
+  program.addCommand(phashCommand);
 
   return program;
 }

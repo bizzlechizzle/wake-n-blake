@@ -67,6 +67,10 @@ function algorithmLabel(algorithm: Algorithm): string {
       return 'SHA256';
     case 'sha512':
       return 'SHA512';
+    case 'md5':
+      return 'MD5';
+    case 'xxhash64':
+      return 'XXHASH64';
   }
 }
 
@@ -117,6 +121,8 @@ export function formatAllHashes(
     'blake3-full': string;
     sha256: string;
     sha512: string;
+    md5: string;
+    xxhash64: string;
     size: number;
     durationMs: number;
   },
@@ -131,7 +137,9 @@ export function formatAllHashes(
     `BLAKE3     ${result.blake3}  ${path}`,
     `BLAKE3-256 ${result['blake3-full']}  ${path}`,
     `SHA256     ${result.sha256}  ${path}`,
-    `SHA512     ${result.sha512}  ${path}`
+    `SHA512     ${result.sha512}  ${path}`,
+    `MD5        ${result.md5}  ${path}`,
+    `XXHASH64   ${result.xxhash64}  ${path}`
   ].join('\n');
 }
 
