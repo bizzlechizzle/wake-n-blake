@@ -90,8 +90,9 @@ export interface ImportFileState {
   path: string;
   relativePath: string;
   size: number;
-  hash?: string;
-  hashShort?: string;  // 16-char truncated BLAKE3
+  hash?: string;  // Full 64-char BLAKE3 hash
+  hashShort?: string;  // 16-char truncated BLAKE3 for filename
+  destHash?: string;  // Hash of destination file after copy (for verification)
   destPath?: string;
   status: 'pending' | 'hashed' | 'copied' | 'validated' | 'skipped' | 'error';
   error?: string;
@@ -271,7 +272,7 @@ export async function runImport(
         for (const destFile of destScan.files) {
           if (destFile.endsWith(CHECKPOINT_FILE)) continue;
           try {
-            const result = await hashFile(destFile, 'blake3');
+            const result = await hashFile(destFile, 'blake3-full');
             existingHashes.add(result.hash);
           } catch {
             // Skip files we can't hash
@@ -286,9 +287,9 @@ export async function runImport(
       if (file.status !== 'pending') continue;
 
       try {
-        const result = await hashFile(file.path, 'blake3');
-        file.hash = result.hash;
-        file.hashShort = result.hash.slice(0, 16);  // 16-char truncated
+        const result = await hashFile(file.path, 'blake3-full');
+        file.hash = result.hash;  // Full 64-char BLAKE3 hash
+        file.hashShort = result.hash.slice(0, 16);  // 16-char for filename
         file.status = 'hashed';
 
         // Check for duplicate
@@ -365,7 +366,8 @@ export async function runImport(
         if (file.status !== 'copied' || !file.destPath) continue;
 
         try {
-          const result = await hashFile(file.destPath, 'blake3');
+          const result = await hashFile(file.destPath, 'blake3-full');
+          file.destHash = result.hash;  // Full 64-char dest hash for verification proof
           if (result.hash === file.hash) {
             file.status = 'validated';
             onFile?.(file, 'validated');
@@ -449,9 +451,12 @@ export async function runImport(
         batchSequence++;
 
         try {
-          // Get file stats for timestamps
+          // Get file stats for all timestamps
           const sourceStats = await fs.stat(file.path).catch(() => null);
           const mtime = sourceStats?.mtime?.toISOString() || now;
+          const ctime = sourceStats?.ctime?.toISOString();
+          const btime = sourceStats?.birthtime?.toISOString();
+          const atime = sourceStats?.atime?.toISOString();
 
           // Map file category to schema FileCategory
           const fileCategory = mapToFileCategory(file.category);
@@ -478,11 +483,17 @@ export async function runImport(
             sidecarCreated: now,
             sidecarUpdated: now,
 
-            // Core identity
-            contentHash: file.hash,
+            // Core identity - ARCHIVE LEVEL
+            contentHash: file.hashShort || file.hash.slice(0, 16),  // 16-char for filename
+            contentHashFull: file.hash,  // Full 64-char for verification
             hashAlgorithm: 'blake3',
             fileSize: file.size,
             verified: file.status === 'validated',
+
+            // Verification proof - ARCHIVE LEVEL
+            sourceHash: file.hash,  // Hash of source before copy
+            destHash: file.destHash,  // Hash of dest after copy
+            hashMatch: file.destHash ? file.hash === file.destHash : undefined,
 
             // File classification
             fileCategory,
@@ -500,8 +511,11 @@ export async function runImport(
             // Import source device
             sourceDevice: session.sourceDevice,
 
-            // Timestamps
+            // Timestamps - ALL of them for ARCHIVE LEVEL
             originalMtime: mtime,
+            originalCtime: ctime,
+            originalBtime: btime,
+            originalAtime: atime,
 
             // Import context
             importTimestamp: session.startedAt,

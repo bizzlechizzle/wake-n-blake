@@ -41,9 +41,21 @@ export function generateXmpContent(data: XmpSidecarData): string {
   lines.push('');
   lines.push('      <!-- Core Identity -->');
   lines.push(`      <wnb:ContentHash>${escapeXml(data.contentHash)}</wnb:ContentHash>`);
+  if (data.contentHashFull) {
+    lines.push(`      <wnb:ContentHashFull>${escapeXml(data.contentHashFull)}</wnb:ContentHashFull>`);
+  }
   lines.push(`      <wnb:HashAlgorithm>${data.hashAlgorithm}</wnb:HashAlgorithm>`);
   lines.push(`      <wnb:FileSize>${data.fileSize}</wnb:FileSize>`);
   lines.push(`      <wnb:Verified>${data.verified}</wnb:Verified>`);
+
+  // Verification proof
+  if (data.sourceHash || data.destHash) {
+    lines.push('');
+    lines.push('      <!-- Verification Proof -->');
+    if (data.sourceHash) lines.push(`      <wnb:SourceHash>${escapeXml(data.sourceHash)}</wnb:SourceHash>`);
+    if (data.destHash) lines.push(`      <wnb:DestHash>${escapeXml(data.destHash)}</wnb:DestHash>`);
+    if (data.hashMatch !== undefined) lines.push(`      <wnb:HashMatch>${data.hashMatch}</wnb:HashMatch>`);
+  }
 
   // File classification
   lines.push('');
@@ -98,6 +110,7 @@ export function generateXmpContent(data: XmpSidecarData): string {
   lines.push(`      <wnb:OriginalMtime>${escapeXml(data.originalMtime)}</wnb:OriginalMtime>`);
   if (data.originalCtime) lines.push(`      <wnb:OriginalCtime>${escapeXml(data.originalCtime)}</wnb:OriginalCtime>`);
   if (data.originalBtime) lines.push(`      <wnb:OriginalBtime>${escapeXml(data.originalBtime)}</wnb:OriginalBtime>`);
+  if (data.originalAtime) lines.push(`      <wnb:OriginalAtime>${escapeXml(data.originalAtime)}</wnb:OriginalAtime>`);
   if (data.sourceTimezone) lines.push(`      <wnb:SourceTimezone>${escapeXml(data.sourceTimezone)}</wnb:SourceTimezone>`);
   if (data.importTimezone) lines.push(`      <wnb:ImportTimezone>${escapeXml(data.importTimezone)}</wnb:ImportTimezone>`);
 

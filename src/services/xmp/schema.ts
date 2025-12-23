@@ -278,10 +278,16 @@ export interface XmpSidecarData {
   sidecarUpdated: string;
 
   // Core identity
-  contentHash: string;
+  contentHash: string;  // Short hash (16 chars) for filename
+  contentHashFull?: string;  // Full hash (64 chars) for verification - optional for backwards compat
   hashAlgorithm: 'blake3';
   fileSize: number;
   verified: boolean;
+
+  // Verification proof (source vs destination)
+  sourceHash?: string;  // Hash of source file before copy
+  destHash?: string;  // Hash of destination file after copy
+  hashMatch?: boolean;  // True if source === dest
 
   // File classification
   fileCategory: FileCategory;
