@@ -186,7 +186,19 @@ const EXTENSION_TO_CATEGORY: Record<string, FileCategory> = {
   '.srt': 'sidecar',
   '.vtt': 'sidecar',
   '.lrf': 'sidecar',
+  '.lrv': 'sidecar',   // GoPro low-res proxy
   '.aae': 'sidecar',
+  '.moi': 'sidecar',   // Sony AVCHD metadata (pairs with .TOD/.MTS)
+  '.cpi': 'sidecar',   // AVCHD clip info
+  '.bdm': 'sidecar',   // Blu-ray disc metadata
+  '.mpl': 'sidecar',   // AVCHD playlist
+  '.rmd': 'sidecar',   // RED camera settings
+  '.ale': 'sidecar',   // ARRI Avid Log Exchange
+  '.sidecar': 'sidecar', // Blackmagic BRAW
+  '.nksc': 'sidecar',  // Nikon NX Studio
+  '.gpr': 'sidecar',   // GoPro RAW (companion to JPG)
+  // Note: .xml is NOT added here because generic XML files are 'data'
+  // Sony XML sidecars (M01.XML) are detected by naming pattern in exiftool.ts
 
   // Text documents
   '.txt': 'document',
@@ -358,11 +370,20 @@ function getMimeFromExtension(extension: string): string {
 }
 
 /**
+ * All recognized sidecar extensions
+ */
+const SIDECAR_EXTS = new Set([
+  '.xmp', '.thm', '.srt', '.vtt', '.lrf', '.lrv',
+  '.aae', '.moi', '.cpi', '.bdm', '.mpl',
+  '.rmd', '.ale', '.sidecar', '.nksc', '.gpr',
+]);
+
+/**
  * Check if file is a sidecar
  */
 export function isSidecarFile(filePath: string): boolean {
   const ext = path.extname(filePath).toLowerCase();
-  return ['.xmp', '.thm', '.srt', '.vtt', '.lrf', '.aae'].includes(ext);
+  return SIDECAR_EXTS.has(ext);
 }
 
 /**
@@ -372,8 +393,8 @@ export function isHiddenFile(filePath: string): boolean {
   const ext = path.extname(filePath).toLowerCase();
   const basename = path.basename(filePath);
 
-  // Hidden sidecars
-  if (['.aae', '.lrf', '.thm'].includes(ext)) return true;
+  // Hidden sidecars (proxies, thumbnails, edit files)
+  if (['.aae', '.lrf', '.lrv', '.thm', '.moi', '.cpi', '.bdm', '.mpl'].includes(ext)) return true;
 
   // SDR duplicates
   if (basename.includes('_SDR.')) return true;

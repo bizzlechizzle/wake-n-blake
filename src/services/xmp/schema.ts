@@ -369,6 +369,23 @@ export interface XmpSidecarData {
   // Raw exiftool metadata (complete dump - all fields)
   rawMetadata?: Record<string, unknown>;
 
+  // Copied companion sidecars (e.g., .SRT, .MOI - preserved alongside primary file)
+  copiedCompanions?: Array<{
+    sourcePath: string;      // Original path of the companion sidecar
+    destPath: string;        // Destination path (relative to primary file)
+    extension: string;       // File extension (e.g., '.srt', '.moi')
+    hash: string;            // BLAKE3 hash for integrity verification
+    size: number;            // File size in bytes
+    contentBase64?: string;  // Full file content as base64 (for archival embedding)
+  }>;
+
+  // Ingested companion sidecars (metadata extracted and merged into rawMetadata)
+  ingestedCompanions?: Array<{
+    sourcePath: string;      // Original path of the companion sidecar
+    extension: string;       // File extension (e.g., '.moi')
+    fieldsAdded: string[];   // List of metadata fields added from this sidecar
+  }>;
+
   // Cloud/download provenance
   downloadURL?: string;
   downloadTimestamp?: string;

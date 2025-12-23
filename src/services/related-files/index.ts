@@ -56,9 +56,36 @@ const LIVE_PHOTO_VIDEO_EXTENSIONS = new Set(['.mov', '.mp4', '.m4v']);
 const HEIC_EXTENSIONS = new Set(['.heic', '.heif', '.hif']);
 
 /**
- * XMP sidecar extensions
+ * XMP and camera sidecar extensions
  */
-const SIDECAR_EXTENSIONS = new Set(['.xmp', '.thm', '.aae']);
+const SIDECAR_EXTENSIONS = new Set([
+  // Standard edit sidecars
+  '.xmp',      // Adobe XMP
+  '.aae',      // Apple photo edits
+  '.nksc',     // Nikon NX Studio
+
+  // Thumbnails/proxies
+  '.thm',      // Thumbnail/metadata (Canon, GoPro)
+  '.lrv',      // GoPro low-res proxy
+  '.lrf',      // DJI low-res flyback
+
+  // Telemetry
+  '.srt',      // DJI drone telemetry
+
+  // AVCHD structure
+  '.moi',      // Sony AVCHD metadata (pairs with .TOD/.MTS)
+  '.cpi',      // AVCHD clip info
+  '.bdm',      // Blu-ray disc metadata
+  '.mpl',      // AVCHD playlist
+
+  // Professional cameras
+  '.rmd',      // RED camera settings
+  '.ale',      // ARRI Avid Log Exchange
+  '.sidecar',  // Blackmagic BRAW
+
+  // RAW companions
+  '.gpr',      // GoPro RAW
+]);
 
 /**
  * Find all related files for a set of files

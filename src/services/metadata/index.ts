@@ -316,3 +316,8 @@ export const writeFullMetadataJson = exiftool.writeFullMetadataJson;
 
 // Re-export individual extractors for direct access
 export { exiftool, ffprobe, mediainfo };
+
+// Re-export companion sidecar functions
+export const mergeCompanionMetadata = exiftool.mergeCompanionMetadata;
+export const findCompanionSidecars = exiftool.findCompanionSidecars;
+export const shouldEmbedContent = exiftool.shouldEmbedContent;

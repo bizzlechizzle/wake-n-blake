@@ -14,7 +14,7 @@ import type { Manifest, ManifestEntry } from '../schemas/index.js';
 import { detectFileType, isSidecarFile, isSkippedFile } from './file-type/detector.js';
 import { writeSidecar } from './xmp/writer.js';
 import { detectSourceDevice, getSourceType } from './device/index.js';
-import { extractMetadata, cleanup as cleanupMetadata, exiftool } from './metadata/index.js';
+import { extractMetadata, cleanup as cleanupMetadata, exiftool, mergeCompanionMetadata, findCompanionSidecars, shouldEmbedContent } from './metadata/index.js';
 import { findRelatedFiles, isPrimaryFile } from './related-files/index.js';
 import type { XmpSidecarData, CustodyEvent, ImportSourceDevice, SourceType, FileCategory } from './xmp/schema.js';
 import { SCHEMA_VERSION } from './xmp/schema.js';
@@ -86,6 +86,16 @@ export interface ImportSession {
   sourceVolumeSerial?: string;
 }
 
+/** Companion sidecar that was copied alongside a primary file */
+export interface CopiedCompanion {
+  sourcePath: string;      // Original source path
+  destPath: string;        // Destination path (may be renamed)
+  extension: string;       // File extension (e.g., '.srt', '.moi')
+  hash: string;            // BLAKE3 hash of the companion
+  size: number;            // File size in bytes
+  contentBase64?: string;  // Full content as base64 for archival embedding
+}
+
 export interface ImportFileState {
   path: string;
   relativePath: string;
@@ -105,6 +115,7 @@ export interface ImportFileState {
   relatedFiles?: string[];  // Live Photo pairs, RAW+JPEG, etc.
   isPrimary?: boolean;  // Primary file in related group
   metadata?: Record<string, unknown>;
+  copiedCompanions?: CopiedCompanion[];  // Companion sidecars copied with this file
 }
 
 export interface ImportOptions {
@@ -344,6 +355,55 @@ export async function runImport(
         session.processedFiles++;
         session.processedBytes += file.size;
         onFile?.(file, 'copied');
+
+        // Copy companion sidecars (e.g., .SRT, .MOI) alongside the primary file
+        // This preserves full telemetry data that's too large to embed in XMP
+        try {
+          const companionPaths = await findCompanionSidecars(file.path);
+          if (companionPaths.length > 0) {
+            file.copiedCompanions = [];
+            const destDir = path.dirname(destPath);
+            const destBase = path.basename(destPath, path.extname(destPath));
+
+            for (const companionPath of companionPaths) {
+              const companionExt = path.extname(companionPath);
+              // Keep original extension, use primary file's base name
+              const companionDestPath = path.join(destDir, `${destBase}${companionExt}`);
+
+              // Copy and hash the companion
+              const companionResult = await copyWithHash(companionPath, companionDestPath, {
+                algorithm: 'blake3',
+                verify,
+                overwrite: false
+              });
+
+              // Get file size for embedding decision
+              const companionStats = await fs.stat(companionDestPath);
+              const extLower = companionExt.toLowerCase();
+
+              // Conditionally embed content based on file type and size
+              // Video proxies (LRF, LRV) and large binaries are copied but not embedded
+              let contentBase64: string | undefined;
+              if (shouldEmbedContent(extLower, companionStats.size)) {
+                const companionContent = await fs.readFile(companionPath);
+                contentBase64 = companionContent.toString('base64');
+              }
+
+              file.copiedCompanions.push({
+                sourcePath: companionPath,
+                destPath: companionDestPath,
+                extension: extLower,
+                hash: companionResult.hash,
+                size: companionStats.size,
+                contentBase64,
+              });
+
+              onFile?.(file, 'companion-copied');
+            }
+          }
+        } catch {
+          // Companion copying is non-fatal, continue without
+        }
       } catch (err: unknown) {
         file.status = 'error';
         file.error = err instanceof Error ? err.message : String(err);
@@ -411,6 +471,20 @@ export async function runImport(
             file.relativePath = path.relative(resolvedDest, newPath);
             session.renamedFiles++;
             onFile?.(file, 'renamed');
+
+            // Also rename companion sidecars to match
+            if (file.copiedCompanions && file.copiedCompanions.length > 0) {
+              for (const companion of file.copiedCompanions) {
+                const companionNewName = `${file.hashShort}${companion.extension}`;
+                const companionNewPath = path.join(dir, companionNewName);
+                try {
+                  await fs.rename(companion.destPath, companionNewPath);
+                  companion.destPath = companionNewPath;
+                } catch {
+                  // Non-fatal, companion keeps original name
+                }
+              }
+            }
           }
         } catch {
           // Renaming is non-fatal, just log and continue
@@ -566,10 +640,43 @@ export async function runImport(
           if (category && ['image', 'photo', 'video', 'audio'].includes(category)) {
             try {
               const rawMeta = await exiftool.extractAllMetadata(file.destPath);
-              sidecarData.rawMetadata = rawMeta;
+
+              // For video files, also look for companion sidecars (e.g., .MOI for .TOD)
+              // and merge their metadata. Use source path to find companions.
+              if (category === 'video' && file.path) {
+                const { merged, ingestedSidecars } = await mergeCompanionMetadata(
+                  file.path,
+                  rawMeta
+                );
+                sidecarData.rawMetadata = merged;
+
+                // Track which companion sidecars were ingested
+                if (ingestedSidecars.length > 0) {
+                  sidecarData.ingestedCompanions = ingestedSidecars.map(s => ({
+                    sourcePath: s.path,
+                    extension: s.extension,
+                    fieldsAdded: [], // Would need to track this in merge function for full detail
+                  }));
+                }
+              } else {
+                sidecarData.rawMetadata = rawMeta;
+              }
             } catch {
               // Raw metadata extraction is optional, continue without it
             }
+          }
+
+          // Add copied companion sidecars (full files preserved alongside primary)
+          // Includes base64-encoded content for archival completeness
+          if (file.copiedCompanions && file.copiedCompanions.length > 0) {
+            sidecarData.copiedCompanions = file.copiedCompanions.map(c => ({
+              sourcePath: c.sourcePath,
+              destPath: path.basename(c.destPath), // Store relative to primary file
+              extension: c.extension,
+              hash: c.hash,
+              size: c.size,
+              contentBase64: c.contentBase64, // Full content for archival
+            }));
           }
 
           // Write sidecar

@@ -259,6 +259,57 @@ export function generateXmpContent(data: XmpSidecarData): string {
     lines.push('      </wnb:ExtendedMetadata>');
   }
 
+  // Copied companion sidecars (full files preserved alongside primary)
+  if (data.copiedCompanions && data.copiedCompanions.length > 0) {
+    lines.push('');
+    lines.push('      <!-- Copied Companion Sidecars (Full Files Preserved) -->');
+    lines.push('      <wnb:CopiedCompanions>');
+    lines.push('        <rdf:Seq>');
+
+    for (const companion of data.copiedCompanions) {
+      lines.push('          <rdf:li rdf:parseType="Resource">');
+      lines.push(`            <wnb:CompanionSourcePath>${escapeXml(companion.sourcePath)}</wnb:CompanionSourcePath>`);
+      lines.push(`            <wnb:CompanionDestPath>${escapeXml(companion.destPath)}</wnb:CompanionDestPath>`);
+      lines.push(`            <wnb:CompanionExtension>${escapeXml(companion.extension)}</wnb:CompanionExtension>`);
+      lines.push(`            <wnb:CompanionHash>${escapeXml(companion.hash)}</wnb:CompanionHash>`);
+      lines.push(`            <wnb:CompanionSize>${companion.size}</wnb:CompanionSize>`);
+      if (companion.contentBase64) {
+        lines.push(`            <wnb:CompanionContent>${companion.contentBase64}</wnb:CompanionContent>`);
+      }
+      lines.push('          </rdf:li>');
+    }
+
+    lines.push('        </rdf:Seq>');
+    lines.push('      </wnb:CopiedCompanions>');
+  }
+
+  // Ingested companion sidecars (e.g., .MOI files merged into this XMP)
+  if (data.ingestedCompanions && data.ingestedCompanions.length > 0) {
+    lines.push('');
+    lines.push('      <!-- Ingested Companion Sidecars -->');
+    lines.push('      <wnb:IngestedCompanions>');
+    lines.push('        <rdf:Seq>');
+
+    for (const companion of data.ingestedCompanions) {
+      lines.push('          <rdf:li rdf:parseType="Resource">');
+      lines.push(`            <wnb:CompanionSourcePath>${escapeXml(companion.sourcePath)}</wnb:CompanionSourcePath>`);
+      lines.push(`            <wnb:CompanionExtension>${escapeXml(companion.extension)}</wnb:CompanionExtension>`);
+      if (companion.fieldsAdded.length > 0) {
+        lines.push('            <wnb:CompanionFieldsAdded>');
+        lines.push('              <rdf:Bag>');
+        for (const field of companion.fieldsAdded) {
+          lines.push(`                <rdf:li>${escapeXml(field)}</rdf:li>`);
+        }
+        lines.push('              </rdf:Bag>');
+        lines.push('            </wnb:CompanionFieldsAdded>');
+      }
+      lines.push('          </rdf:li>');
+    }
+
+    lines.push('        </rdf:Seq>');
+    lines.push('      </wnb:IngestedCompanions>');
+  }
+
   // Chain of custody
   lines.push('');
   lines.push('      <!-- Chain of Custody -->');
