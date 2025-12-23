@@ -231,12 +231,12 @@ export async function getLensSerial(filePath: string): Promise<string | undefine
 /**
  * Format ExifTool date to ISO string
  */
-function formatExifDate(date: any): string | undefined {
+function formatExifDate(date: unknown): string | undefined {
   if (!date) return undefined;
 
   // ExifTool returns ExifDateTime objects
-  if (typeof date.toISOString === 'function') {
-    return date.toISOString();
+  if (typeof date === 'object' && date !== null && 'toISOString' in date && typeof (date as { toISOString: () => string }).toISOString === 'function') {
+    return (date as { toISOString: () => string }).toISOString();
   }
 
   // Handle string dates
@@ -255,7 +255,7 @@ function formatExifDate(date: any): string | undefined {
 /**
  * Format focal length
  */
-function formatFocalLength(value: any): string | undefined {
+function formatFocalLength(value: unknown): string | undefined {
   if (!value) return undefined;
   if (typeof value === 'number') return `${value}mm`;
   return String(value);
@@ -264,7 +264,7 @@ function formatFocalLength(value: any): string | undefined {
 /**
  * Format aperture (f-number)
  */
-function formatAperture(value: any): string | undefined {
+function formatAperture(value: unknown): string | undefined {
   if (!value) return undefined;
   if (typeof value === 'number') return `f/${value.toFixed(1)}`;
   return String(value);
@@ -273,7 +273,7 @@ function formatAperture(value: any): string | undefined {
 /**
  * Format shutter speed
  */
-function formatShutterSpeed(value: any): string | undefined {
+function formatShutterSpeed(value: unknown): string | undefined {
   if (!value) return undefined;
   if (typeof value === 'number') {
     if (value >= 1) return `${value}s`;
@@ -285,7 +285,7 @@ function formatShutterSpeed(value: any): string | undefined {
 /**
  * Parse duration to seconds
  */
-function parseDuration(value: any): number | undefined {
+function parseDuration(value: unknown): number | undefined {
   if (!value) return undefined;
 
   if (typeof value === 'number') return value;
@@ -316,7 +316,7 @@ function parseDuration(value: any): number | undefined {
 /**
  * Parse keywords (can be string or array)
  */
-function parseKeywords(value: any): string[] | undefined {
+function parseKeywords(value: unknown): string[] | undefined {
   if (!value) return undefined;
   if (Array.isArray(value)) return value.map(String);
   if (typeof value === 'string') return value.split(/[,;]/).map(s => s.trim());

@@ -64,8 +64,9 @@ export async function copyWithHash(
     try {
       await fs.promises.access(destination);
       throw new Error(`Destination already exists: ${destination}`);
-    } catch (err: any) {
-      if (err.code !== 'ENOENT') throw err;
+    } catch (err: unknown) {
+      const errObj = err as NodeJS.ErrnoException;
+      if (errObj.code !== 'ENOENT') throw err;
     }
   }
 
@@ -125,11 +126,11 @@ export async function copyWithHash(
         retries: attemptCount - 1
       };
 
-    } catch (err: any) {
-      lastError = err;
+    } catch (err: unknown) {
+      lastError = err instanceof Error ? err : new Error(String(err));
 
       // Check if retryable
-      if (isRetryable(err) && attemptCount < retries) {
+      if (isRetryable(err as NodeJS.ErrnoException) && attemptCount < retries) {
         const delay = Math.min(
           RETRY_CONFIG.baseDelayMs * Math.pow(2, attemptCount - 1),
           RETRY_CONFIG.maxDelayMs
@@ -236,8 +237,8 @@ function finalizeHash(hasher: Hasher, algorithm: Algorithm): string {
 /**
  * Check if error is retryable
  */
-function isRetryable(err: any): boolean {
-  return RETRYABLE_ERRORS.includes(err.code);
+function isRetryable(err: NodeJS.ErrnoException): boolean {
+  return err.code !== undefined && (RETRYABLE_ERRORS as readonly string[]).includes(err.code);
 }
 
 /**

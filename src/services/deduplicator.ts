@@ -133,8 +133,8 @@ export async function linkDuplicates(
           // Create hardlink
           await fs.link(original, dup);
           linked++;
-        } catch (err: any) {
-          errors.push({ path: dup, error: err.message });
+        } catch (err: unknown) {
+          errors.push({ path: dup, error: err instanceof Error ? err.message : String(err) });
         }
       }
     }
@@ -167,8 +167,8 @@ export async function deleteDuplicates(
           await fs.unlink(dup);
           deleted++;
           freedBytes += group.size;
-        } catch (err: any) {
-          errors.push({ path: dup, error: err.message });
+        } catch (err: unknown) {
+          errors.push({ path: dup, error: err instanceof Error ? err.message : String(err) });
         }
       }
     }

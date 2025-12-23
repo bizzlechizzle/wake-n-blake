@@ -67,8 +67,8 @@ export async function scanDirectory(
     let entries;
     try {
       entries = await fs.readdir(currentDir, { withFileTypes: true });
-    } catch (err: any) {
-      result.errors.push({ path: currentDir, error: err.message });
+    } catch (err: unknown) {
+      result.errors.push({ path: currentDir, error: err instanceof Error ? err.message : String(err) });
       return;
     }
 
@@ -121,8 +121,8 @@ export async function scanDirectory(
               continue;
             }
             result.totalSize += stats.size;
-          } catch (err: any) {
-            result.errors.push({ path: fullPath, error: err.message });
+          } catch (err: unknown) {
+            result.errors.push({ path: fullPath, error: err instanceof Error ? err.message : String(err) });
             continue;
           }
         }

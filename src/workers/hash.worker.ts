@@ -23,19 +23,24 @@ interface HashResult {
   error?: string;
 }
 
+interface Hasher {
+  update(data: Buffer): void;
+  digest(encoding: 'hex'): string;
+}
+
 // Worker receives tasks from parent
 if (parentPort) {
   parentPort.on('message', async (task: HashTask) => {
     try {
       const result = await hashFile(task);
       parentPort!.postMessage(result);
-    } catch (err: any) {
+    } catch (err: unknown) {
       parentPort!.postMessage({
         id: task.id,
         filePath: task.filePath,
         hash: '',
         size: 0,
-        error: err.message
+        error: err instanceof Error ? err.message : String(err)
       });
     }
   });
@@ -45,13 +50,13 @@ async function hashFile(task: HashTask): Promise<HashResult> {
   const { id, filePath, algorithm, bufferSize } = task;
 
   // Create appropriate hasher
-  let hasher: any;
+  let hasher: Hasher;
   if (algorithm === 'blake3' || algorithm === 'blake3-full') {
-    hasher = blake3Hash();
+    hasher = blake3Hash() as unknown as Hasher;
   } else if (algorithm === 'sha256') {
-    hasher = cryptoHash('sha256');
+    hasher = cryptoHash('sha256') as unknown as Hasher;
   } else {
-    hasher = cryptoHash('sha512');
+    hasher = cryptoHash('sha512') as unknown as Hasher;
   }
 
   // Read and hash file

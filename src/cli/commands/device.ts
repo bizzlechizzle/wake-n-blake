@@ -15,6 +15,7 @@ import {
   createDeviceFingerprint,
 } from '../../services/device/index.js';
 import type { DeviceChain } from '../../services/device/types.js';
+import type { MediaType } from '../../services/xmp/schema.js';
 
 export const deviceCommand = new Command('device')
   .description('Source device detection and listing');
@@ -279,10 +280,26 @@ deviceCommand.action(() => {
   listCmd.parseAsync(process.argv.slice(2));
 });
 
+interface SimplifiedDeviceInfo {
+  usb?: { vendorId: string; productId: string; serial?: string; devicePath?: string; deviceName?: string; busLocation?: string };
+  cardReader?: { vendor: string; model?: string; serial?: string; port?: string };
+  media?: { type: MediaType; serial?: string; manufacturer?: string; capacity: number; firmware?: string };
+  tetheredConnection?: 'usb';
+}
+
+interface SimplifiedChainInfo {
+  usb?: { vendorId: string; productId: string; name?: string; serial?: string };
+  cardReader?: { vendor: string; model?: string };
+  media?: { type: string; serial?: string };
+  isMemoryCard: boolean;
+  isCameraDirect: boolean;
+  isPhoneDirect: boolean;
+}
+
 /**
  * Convert DeviceChain to ImportSourceDevice
  */
-function chainToDevice(chain: DeviceChain) {
+function chainToDevice(chain: DeviceChain): SimplifiedDeviceInfo {
   return {
     usb: chain.usb ? {
       vendorId: chain.usb.vendorId,
@@ -312,7 +329,7 @@ function chainToDevice(chain: DeviceChain) {
 /**
  * Convert chain to simplified info object
  */
-function chainToInfo(chain: DeviceChain) {
+function chainToInfo(chain: DeviceChain): SimplifiedChainInfo {
   return {
     usb: chain.usb ? {
       vendorId: chain.usb.vendorId,

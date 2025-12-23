@@ -320,12 +320,13 @@ async function verifyManifest(
       paths.push(entry.path);
       hashToPath.set(result.hash, paths);
 
-    } catch (err: any) {
-      if (err.code === 'ENOENT') {
+    } catch (err: unknown) {
+      const errObj = err as NodeJS.ErrnoException;
+      if (errObj.code === 'ENOENT') {
         missing.push(entry);
         if (verbose) console.error(`MISSING: ${entry.path}`);
       } else {
-        console.error(`ERROR: ${entry.path}: ${err.message}`);
+        console.error(`ERROR: ${entry.path}: ${errObj.message ?? String(err)}`);
       }
     }
   }

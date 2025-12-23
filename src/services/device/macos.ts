@@ -29,6 +29,47 @@ import type { ImportSourceDevice } from '../xmp/schema.js';
 const execAsync = promisify(exec);
 
 /**
+ * USB device item from system_profiler JSON output
+ */
+interface USBDeviceItem {
+  _name?: string;
+  vendor_id?: string | number;
+  product_id?: string | number;
+  serial_num?: string;
+  location_id?: string;
+  manufacturer?: string;
+  device_speed?: string;
+  _items?: USBDeviceItem[];
+}
+
+/**
+ * Plist parsed disk info
+ */
+interface DiskInfo {
+  MountPoint?: string;
+  DeviceNode?: string;
+  DeviceIdentifier?: string;
+  VolumeName?: string;
+  VolumeUUID?: string;
+  FilesystemType?: string;
+  RemovableMedia?: boolean;
+  RemovableMediaOrExternalDevice?: boolean;
+  Internal?: boolean;
+  Protocol?: string;
+  TotalSize?: number;
+  FreeSpace?: number;
+  MediaName?: string;
+  AllDisksAndPartitions?: DiskPartition[];
+  Partitions?: DiskPartition[];
+  [key: string]: unknown;  // Index signature for dynamic access
+}
+
+interface DiskPartition {
+  MountPoint?: string;
+  Partitions?: DiskPartition[];
+}
+
+/**
  * macOS Device Detector implementation
  */
 export class MacOSDeviceDetector implements PlatformDeviceDetector {
@@ -235,7 +276,7 @@ export class MacOSDeviceDetector implements PlatformDeviceDetector {
       const { stdout } = await execAsync('system_profiler SPUSBDataType -json');
       const data = JSON.parse(stdout);
 
-      const extractDevices = (items: any[], _parent?: any): void => {
+      const extractDevices = (items: USBDeviceItem[], _parent?: USBDeviceItem): void => {
         for (const item of items || []) {
           if (item.vendor_id && item.product_id) {
             devices.push({
@@ -427,8 +468,8 @@ export class MacOSDeviceDetector implements PlatformDeviceDetector {
   /**
    * Parse simple plist output to object
    */
-  private parsePlist(plistXml: string): Record<string, any> {
-    const result: Record<string, any> = {};
+  private parsePlist(plistXml: string): DiskInfo {
+    const result: DiskInfo = {};
 
     // Simple key-value extraction
     const keyValueRegex = /<key>([^<]+)<\/key>\s*<(string|integer|true|false|real|data)>?([^<]*)<?\/?/g;
@@ -472,13 +513,13 @@ export class MacOSDeviceDetector implements PlatformDeviceDetector {
   /**
    * Parse disks array from plist
    */
-  private parseDisksArray(arrayContent: string): any[] {
-    const disks: any[] = [];
+  private parseDisksArray(arrayContent: string): DiskPartition[] {
+    const disks: DiskPartition[] = [];
     const dictRegex = /<dict>([\s\S]*?)<\/dict>/g;
     let match;
 
     while ((match = dictRegex.exec(arrayContent)) !== null) {
-      const disk = this.parsePlist(match[1]);
+      const disk: DiskPartition = this.parsePlist(match[1]) as DiskPartition;
 
       // Handle partitions
       const partMatch = match[1].match(/<key>Partitions<\/key>\s*<array>([\s\S]*?)<\/array>/);
@@ -487,7 +528,7 @@ export class MacOSDeviceDetector implements PlatformDeviceDetector {
         const partDictRegex = /<dict>([\s\S]*?)<\/dict>/g;
         let partDictMatch;
         while ((partDictMatch = partDictRegex.exec(partMatch[1])) !== null) {
-          disk.Partitions.push(this.parsePlist(partDictMatch[1]));
+          disk.Partitions.push(this.parsePlist(partDictMatch[1]) as DiskPartition);
         }
       }
 

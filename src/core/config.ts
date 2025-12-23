@@ -92,7 +92,7 @@ export async function loadConfig(): Promise<WnbConfig> {
     if (value !== undefined) {
       // Parse based on expected type
       if (configKey === 'forceWasm' || configKey === 'forceNative') {
-        (config as any)[configKey] = value === 'true' || value === '1';
+        config[configKey] = value === 'true' || value === '1';
       } else if (
         configKey === 'concurrency' ||
         configKey === 'networkConcurrency' ||
@@ -103,10 +103,14 @@ export async function loadConfig(): Promise<WnbConfig> {
       ) {
         const parsed = parseInt(value, 10);
         if (!isNaN(parsed)) {
-          (config as any)[configKey] = parsed;
+          config[configKey] = parsed;
         }
-      } else {
-        (config as any)[configKey] = value;
+      } else if (configKey === 'nativeB3sum') {
+        config[configKey] = value;
+      } else if (configKey === 'defaultFormat') {
+        config[configKey] = value as WnbConfig['defaultFormat'];
+      } else if (configKey === 'defaultAlgorithm') {
+        config[configKey] = value as WnbConfig['defaultAlgorithm'];
       }
     }
   }

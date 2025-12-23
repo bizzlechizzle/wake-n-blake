@@ -352,7 +352,7 @@ async function generateSidecarData(
     sourcePath: filePath,
     sourceFilename: path.basename(filePath),
     sourceHost: os.hostname(),
-    sourceType: sourceType as any,
+    sourceType: sourceType as XmpSidecarData['sourceType'],
     sourceDevice,
 
     originalMtime: stat.mtime.toISOString(),
@@ -380,7 +380,7 @@ async function generateSidecarData(
  * Print sidecar data in text format
  */
 function printSidecarData(data: XmpSidecarData, section?: string): void {
-  const printSection = (name: string, fn: () => void) => {
+  const printSection = (name: string, fn: () => void): void => {
     if (!section || section.toLowerCase() === name.toLowerCase()) {
       fn();
     }

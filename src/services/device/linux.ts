@@ -29,6 +29,23 @@ import type { ImportSourceDevice } from '../xmp/schema.js';
 const execAsync = promisify(exec);
 
 /**
+ * Lsblk device structure from JSON output
+ */
+interface LsblkDevice {
+  name: string;
+  size?: string;
+  type?: string;
+  mountpoint?: string;
+  fstype?: string;
+  uuid?: string;
+  label?: string;
+  hotplug?: boolean | string;
+  rm?: boolean | string;
+  tran?: string;
+  children?: LsblkDevice[];
+}
+
+/**
  * Linux Device Detector implementation
  */
 export class LinuxDeviceDetector implements PlatformDeviceDetector {
@@ -49,7 +66,7 @@ export class LinuxDeviceDetector implements PlatformDeviceDetector {
       );
       const data = JSON.parse(stdout);
 
-      const processDevice = async (device: any, _parent?: any): Promise<void> => {
+      const processDevice = async (device: LsblkDevice, _parent?: LsblkDevice): Promise<void> => {
         if (device.mountpoint && (device.rm || device.hotplug)) {
           const volume = await this.getVolumeFromLsblk(device);
           if (volume) volumes.push(volume);
@@ -88,7 +105,7 @@ export class LinuxDeviceDetector implements PlatformDeviceDetector {
   /**
    * Get volume info from lsblk device
    */
-  private async getVolumeFromLsblk(device: any): Promise<MountedVolume | undefined> {
+  private async getVolumeFromLsblk(device: LsblkDevice): Promise<MountedVolume | undefined> {
     if (!device.mountpoint) return undefined;
 
     try {

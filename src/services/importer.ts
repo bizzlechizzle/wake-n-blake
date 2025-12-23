@@ -301,9 +301,9 @@ export async function runImport(
         }
 
         onFile?.(file, 'hashed');
-      } catch (err: any) {
+      } catch (err: unknown) {
         file.status = 'error';
-        file.error = err.message;
+        file.error = err instanceof Error ? err.message : String(err);
         session.errorFiles++;
         onFile?.(file, 'error');
       }
@@ -343,9 +343,9 @@ export async function runImport(
         session.processedFiles++;
         session.processedBytes += file.size;
         onFile?.(file, 'copied');
-      } catch (err: any) {
+      } catch (err: unknown) {
         file.status = 'error';
-        file.error = err.message;
+        file.error = err instanceof Error ? err.message : String(err);
         session.errorFiles++;
         onFile?.(file, 'error');
       }
@@ -375,9 +375,9 @@ export async function runImport(
             session.errorFiles++;
             onFile?.(file, 'validation-failed');
           }
-        } catch (err: any) {
+        } catch (err: unknown) {
           file.status = 'error';
-          file.error = `Validation error: ${err.message}`;
+          file.error = `Validation error: ${err instanceof Error ? err.message : String(err)}`;
           session.errorFiles++;
           onFile?.(file, 'error');
         }
@@ -536,13 +536,13 @@ export async function runImport(
           // Add type-specific metadata
           if (file.metadata) {
             if (file.category === 'photo' || file.category === 'image') {
-              sidecarData.photo = file.metadata as any;
+              sidecarData.photo = file.metadata as XmpSidecarData['photo'];
             } else if (file.category === 'video') {
-              sidecarData.video = file.metadata as any;
+              sidecarData.video = file.metadata as XmpSidecarData['video'];
             } else if (file.category === 'audio') {
-              sidecarData.audio = file.metadata as any;
+              sidecarData.audio = file.metadata as XmpSidecarData['audio'];
             } else if (file.category === 'document') {
-              sidecarData.document = file.metadata as any;
+              sidecarData.document = file.metadata as XmpSidecarData['document'];
             }
           }
 
@@ -605,9 +605,9 @@ export async function runImport(
 
     return session;
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     session.status = 'failed';
-    session.error = err.message;
+    session.error = err instanceof Error ? err.message : String(err);
     await saveCheckpoint(checkpointPath, session);
     throw err;
   }

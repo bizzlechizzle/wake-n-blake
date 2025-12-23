@@ -7,9 +7,16 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import ignoreModule from 'ignore';
-// Handle ESM/CJS interop
-const ignore = (ignoreModule as any).default || ignoreModule;
-type Ignore = ReturnType<typeof ignore>;
+
+// Define the Ignore interface
+interface Ignore {
+  add(pattern: string | string[]): Ignore;
+  ignores(path: string): boolean;
+}
+
+// Handle ESM/CJS interop - ignore module exports function directly
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const ignore = ((ignoreModule as any).default ?? ignoreModule) as () => Ignore;
 
 // Default patterns always excluded
 const DEFAULT_PATTERNS = [

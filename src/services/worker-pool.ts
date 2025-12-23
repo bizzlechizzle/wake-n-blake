@@ -145,7 +145,7 @@ export class WorkerPool {
           completed++;
           onProgress?.(completed, files.length, file);
           return result;
-        } catch (err: any) {
+        } catch (err: unknown) {
           completed++;
           onProgress?.(completed, files.length, file);
           return {
@@ -153,7 +153,7 @@ export class WorkerPool {
             filePath: file,
             hash: '',
             size: 0,
-            error: err.message
+            error: err instanceof Error ? err.message : String(err)
           };
         }
       });

@@ -44,8 +44,9 @@ export const verifyCommand = new Command('verify')
       }
 
       process.exit(result.match ? 0 : 1);
-    } catch (err: any) {
-      if (err.code === 'ENOENT') {
+    } catch (err: unknown) {
+      const errObj = err as NodeJS.ErrnoException;
+      if (errObj.code === 'ENOENT') {
         if (!options.quiet) {
           console.error(formatError(`File not found: ${filePath}`));
         }
