@@ -391,7 +391,7 @@ const COMPANION_SIDECAR_EXTENSIONS = [
  * Sony professional camera XML sidecar patterns.
  * Sony uses suffixes like M01.XML for metadata clips.
  */
-const SONY_XML_SUFFIXES = ['M01.XML', 'M01.xml', 'C01.XML', 'C01.xml'];
+const _SONY_XML_SUFFIXES = ['M01.XML', 'M01.xml', 'C01.XML', 'C01.xml'];
 
 /**
  * Video extensions that commonly have companion sidecars

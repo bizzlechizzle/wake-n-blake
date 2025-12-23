@@ -1549,10 +1549,209 @@ npm run test:integration     # Integration tests (needs fixtures)
 
 ---
 
+## New Services (v0.6.0)
+
+### Camera Fingerprinting
+
+Identify cameras from EXIF metadata, filename patterns, and folder structures using a database of 9,766+ camera signatures.
+
+```typescript
+import { CameraFingerprinter } from './services/device/camera-fingerprint.js';
+
+const fingerprinter = new CameraFingerprinter();
+
+// Match from EXIF data
+const match = fingerprinter.matchByExif('Canon', 'EOS R5');
+// Returns: { id, make, model, category: 'camera_professional', era: 'mirrorless', ... }
+
+// Match from filename pattern
+const match = fingerprinter.matchByFilename('A7R5_1234.ARW');
+// Returns Sony Alpha 7R V signature
+
+// Match from folder structure
+const match = fingerprinter.matchByFolder('/PRIVATE/M4ROOT/CLIP');
+// Returns Sony XDCAM signature
+```
+
+**Camera Categories:**
+- `camera_cinema`: RED, ARRI, Blackmagic
+- `camera_professional`: Canon EOS, Sony Alpha, Nikon Z
+- `camera_consumer`: Point-and-shoot, compact
+- `camera_action`: GoPro, Insta360, DJI Action
+- `drone`: DJI Mavic, Mini, Air
+- `phone`: iPhone, Pixel, Samsung Galaxy
+
+### Extension Learning
+
+Dynamic extension categorization that learns new file types as encountered.
+
+```typescript
+import { ExtensionLearner } from './services/file-type/extension-learner.js';
+
+const learner = new ExtensionLearner('~/.config/blake/extensions');
+
+// Check category (returns 'document' for unknown)
+learner.getCategory('.xyz');  // 'document'
+learner.getCategory('.mp4');  // 'video'
+
+// Report unknown extension (returns true if first time seen)
+learner.reportExtension('.xyz', '/path/to/file.xyz');
+
+// User teaches the system
+learner.learn('.xyz', 'video', 'Custom video format');
+
+// Auto-learn with confidence score
+learner.autoLearn('.abc', 'audio', 0.8);
+
+// Get statistics
+learner.getStats();  // { unknown: 5, learned: 12, userLearned: 3, autoLearned: 9 }
+```
+
+### Comprehensive Media Types
+
+400+ file extensions across 10 categories with helper functions.
+
+```typescript
+import {
+  IMAGE_EXTENSIONS, RAW_EXTENSIONS, VIDEO_EXTENSIONS, AUDIO_EXTENSIONS,
+  SIDECAR_EXTENSIONS, EBOOK_EXTENSIONS, GAME_EXTENSIONS, ARCHIVE_EXTENSIONS,
+  ALL_MEDIA_EXTENSIONS, ALL_KNOWN_EXTENSIONS,
+  getMediaCategory, isMediaExtension, isKnownExtension
+} from './services/file-type/media-types.js';
+
+// Category lookup
+getMediaCategory('.jpg');   // 'image'
+getMediaCategory('.cr3');   // 'raw'
+getMediaCategory('.mp4');   // 'video'
+getMediaCategory('.epub');  // 'ebook'
+getMediaCategory('.nsp');   // 'game'
+getMediaCategory('.xyz');   // 'document' (unknown defaults)
+
+// Type guards
+isMediaExtension('.mp4');    // true (image/raw/video/audio)
+isMediaExtension('.epub');   // false (ebook, not media)
+isKnownExtension('.epub');   // true (any recognized category)
+```
+
+### USB Vendor Database
+
+50+ USB vendor IDs for cameras, drones, phones, and card readers.
+
+```typescript
+import {
+  USB_VENDORS, USB_DEVICES, VENDOR_CATEGORIES,
+  getVendorName, getDeviceName, getDeviceCategory,
+  isCameraVendor, isDroneVendor, isCardReaderVendor,
+  parseHexId, formatVidPid
+} from './services/device/usb-vendors.js';
+
+// Vendor lookup
+getVendorName(1193);         // 'Canon' (0x04a9)
+getVendorName(10007);        // 'DJI' (0x2717)
+
+// Device lookup
+getDeviceName(1193, 12818);  // 'Canon EOS R5'
+
+// Category checks
+getDeviceCategory(1193);     // 'camera_professional'
+isCameraVendor(1193);        // true
+isDroneVendor(10007);        // true
+
+// Hex parsing (from system_profiler output)
+parseHexId('0x04a9');                    // 1193
+parseHexId('0x04a9  (Canon Inc.)');      // 1193
+formatVidPid(1193, 12818);               // '04a9:3212'
+```
+
+### Storage Pattern Detection
+
+Detect storage type and configure I/O accordingly.
+
+```typescript
+import {
+  detectStorageType, getStorageConfig, detectCameraFromFolder, getVolumeName,
+  CAMERA_FOLDER_PATTERNS, FILENAME_PATTERNS
+} from './services/device/storage-patterns.js';
+
+// Storage type detection
+detectStorageType('smb://server/share');         // 'network'
+detectStorageType('/Volumes/Macintosh HD');      // 'local'
+detectStorageType('/Volumes/SDCARD/DCIM');       // 'camera_media'
+
+// Get optimized I/O config
+const config = getStorageConfig('/Volumes/SDCARD');
+// { type: 'camera_media', concurrency: 2, bufferSize: 256KB, operationDelayMs: 10 }
+
+// Camera detection from folder patterns
+detectCameraFromFolder('/PRIVATE/M4ROOT/CLIP'); // 'sony'
+detectCameraFromFolder('/DCIM/100CANON');       // 'canon'
+detectCameraFromFolder('/DCIM/100GOPRO');       // 'gopro'
+```
+
+### Pro Camera XML Sidecar Parsing
+
+Extract metadata from professional camera XML sidecars.
+
+```typescript
+import {
+  parseXmlSidecar, detectSidecarType,
+  parseSonyXdcamXml, parseCanonXfXml, parseArriXml
+} from './services/metadata/xml-sidecar.js';
+
+// Auto-detect and parse
+const result = await parseXmlSidecar('/path/to/M01.XML');
+// Returns: {
+//   type: 'sony_xdcam',
+//   camera: 'Sony FX6',
+//   lens: 'FE 24-70mm F2.8 GM',
+//   timecode: '10:23:45:12',
+//   reel: 'A001',
+//   scene: 'Scene 1',
+//   take: 'Take 3',
+//   ...
+// }
+```
+
+### Shared Registry (Cross-App Config)
+
+Configuration shared across all blake-family apps at `~/.config/blake/`.
+
+```typescript
+import { SharedRegistry } from './services/device/shared-registry.js';
+
+const registry = SharedRegistry.getInstance();
+
+// Camera signatures (9,766+ cameras)
+const cameras = registry.getCameraSignatures();
+
+// Extension types
+const types = registry.getExtensionTypes();
+
+// Add custom extension
+registry.addExtensionType('.xyz', 'video', 'Custom format');
+
+// Sync from GitHub (if configured)
+await registry.syncFromRemote();
+```
+
+**Registry Structure:**
+```
+~/.config/blake/
+├── camera-signatures/
+│   └── canonical.json    # 9,766+ cameras
+├── extension-types/
+│   ├── builtin.json      # Default types
+│   └── learned.json      # User-learned types
+└── sync.json             # Sync configuration
+```
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.6.0 | 2025-12-23 | Camera fingerprinting (9,766 cameras), extension learning, USB vendors, storage patterns, XML sidecar parsing, shared registry, XMP schema v3 |
 | 0.5.0 | 2025-12-22 | Full test suite (96 tests), XMP hash validation fix, case-insensitive file matching |
 | 0.4.0 | 2025-12-22 | Added `wnb meta`, metadata extraction stack (ExifTool, MediaInfo, ffprobe, etc.) |
 | 0.3.0 | 2025-12-22 | Added XMP sidecar, `wnb sidecar`, `wnb device`, source device detection |

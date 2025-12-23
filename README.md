@@ -12,10 +12,14 @@ Universal BLAKE3 hashing, verification, and file provenance CLI for professional
 - **File provenance**: XMP sidecars with PREMIS-aligned chain of custody
 - **Professional formats**: MHL (Media Hash List), BagIt (RFC 8493)
 - **Device detection**: Automatic source device fingerprinting (USB, cards, cameras)
+- **Camera fingerprinting**: 9,766+ camera signatures for identification from EXIF, filenames, folders
 - **GPS enrichment**: Match photos/videos to GPS tracks (KML, GPX, GeoJSON)
 - **Perceptual hashing**: Find similar images with dHash/aHash/pHash
+- **Extension learning**: Dynamic file type categorization with user feedback loop
+- **400+ media types**: Comprehensive coverage of image, video, audio, RAW, sidecar, ebook, game, archive formats
 - **Network-aware**: Optimized for SMB/NFS with automatic retry logic
-- **Library-first**: All 60+ functions available for programmatic use
+- **Cross-app config**: Shared registry at `~/.config/blake/` for camera DB, extension types
+- **Library-first**: All 70+ functions available for programmatic use
 
 ## Installation
 
@@ -424,7 +428,7 @@ wnb diagnose [-v] [-f json]
 
 ## Library Usage
 
-All 60+ CLI functions are available for programmatic use:
+All 70+ CLI functions are available for programmatic use:
 
 ```typescript
 import {
@@ -453,6 +457,9 @@ import {
   // Professional Formats
   generateMhl, writeMhl, verifyMhl,
   createBag, verifyBag,
+
+  // File Type Detection (400+ extensions)
+  getMediaCategory, isMediaExtension, isKnownExtension,
 
   // Types
   type Algorithm, type HashResult, type XmpSidecar, type ImportSession,

@@ -178,6 +178,114 @@ export {
 } from './services/related-files/index.js';
 
 // ============================================
+// FILE TYPE DATABASE (400+ extensions)
+// ============================================
+
+export {
+  IMAGE_EXTENSIONS,
+  RAW_EXTENSIONS,
+  VIDEO_EXTENSIONS,
+  AUDIO_EXTENSIONS,
+  SIDECAR_EXTENSIONS,
+  EBOOK_EXTENSIONS,
+  GAME_EXTENSIONS,
+  ARCHIVE_EXTENSIONS,
+  ALL_MEDIA_EXTENSIONS,
+  ALL_KNOWN_EXTENSIONS,
+  getMediaCategory,
+  isMediaExtension,
+  isKnownExtension
+} from './services/file-type/media-types.js';
+
+export type { MediaCategory } from './services/file-type/media-types.js';
+
+export { ExtensionLearner } from './services/file-type/extension-learner.js';
+
+// ============================================
+// CAMERA FINGERPRINTING (9,766+ cameras)
+// ============================================
+
+export { CameraFingerprinter } from './services/device/camera-fingerprint.js';
+
+export type {
+  CameraCategory,
+  CameraSignature,
+  CameraMatch,
+  MediaEra
+} from './services/device/camera-fingerprint.js';
+
+// ============================================
+// USB VENDORS & STORAGE PATTERNS
+// ============================================
+
+export {
+  USB_VENDORS,
+  USB_DEVICES,
+  VENDOR_CATEGORIES,
+  getVendorName,
+  getDeviceName,
+  getDeviceCategory,
+  isCameraVendor,
+  isDroneVendor,
+  isCardReaderVendor,
+  parseHexId,
+  formatVidPid
+} from './services/device/usb-vendors.js';
+
+export {
+  NETWORK_PATH_PREFIXES,
+  LOCAL_VOLUME_PATTERNS,
+  CAMERA_VOLUME_PATTERNS,
+  CAMERA_FOLDER_PATTERNS,
+  FILENAME_PATTERNS,
+  STORAGE_CONFIGS,
+  detectStorageType,
+  getStorageConfig,
+  detectCameraFromFolder,
+  getVolumeName
+} from './services/device/storage-patterns.js';
+
+export type { StorageType, StorageConfig } from './services/device/storage-patterns.js';
+
+// ============================================
+// PRO CAMERA XML SIDECARS
+// ============================================
+
+export {
+  parseXmlSidecar,
+  isXmlSidecar,
+  findLinkedVideoFile,
+  getXmlSidecarForVideo
+} from './services/metadata/xml-sidecar.js';
+
+export type { XmlSidecarData } from './services/metadata/xml-sidecar.js';
+
+// ============================================
+// SHARED REGISTRY (~/.config/blake/)
+// ============================================
+
+export {
+  getSharedConfigDir,
+  ensureConfigDir,
+  REGISTRY_PATHS,
+  getRegistryVersion,
+  getSyncConfig,
+  saveSyncConfig,
+  loadAllCameras,
+  addUserCamera,
+  removeUserCamera,
+  exportUserCameras,
+  importCameras,
+  getRegistryInfo
+} from './services/device/shared-registry.js';
+
+export type {
+  RegistryVersion,
+  GitHubSyncConfig,
+  LoadResult
+} from './services/device/shared-registry.js';
+
+// ============================================
 // SCHEMAS & VALIDATION
 // ============================================
 

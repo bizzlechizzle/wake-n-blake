@@ -3,6 +3,10 @@
  *
  * Platform-agnostic interface for detecting source devices
  * during file import for chain of custody tracking.
+ *
+ * Also includes:
+ * - Camera fingerprinting (9,766+ cameras)
+ * - Shared registry for cross-app device/camera data
  */
 
 import type { PlatformDeviceDetector, DeviceDetectionResult, MountedVolume, DeviceChain } from './types.js';
@@ -10,6 +14,18 @@ import type { ImportSourceDevice, SourceType } from '../xmp/schema.js';
 
 // Re-export types
 export * from './types.js';
+
+// Camera fingerprinting (9,766+ cameras)
+export * from './camera-fingerprint.js';
+
+// Shared registry (cross-app ~/.config/blake/)
+export * from './shared-registry.js';
+
+// USB vendor/product ID database
+export * from './usb-vendors.js';
+
+// Storage type detection & camera folder patterns
+export * from './storage-patterns.js';
 
 /**
  * Get platform-specific detector

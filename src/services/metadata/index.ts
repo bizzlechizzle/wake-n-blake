@@ -321,3 +321,6 @@ export { exiftool, ffprobe, mediainfo };
 export const mergeCompanionMetadata = exiftool.mergeCompanionMetadata;
 export const findCompanionSidecars = exiftool.findCompanionSidecars;
 export const shouldEmbedContent = exiftool.shouldEmbedContent;
+
+// XML sidecar parsing (Sony XDCAM, Canon XF, ARRI)
+export * from './xml-sidecar.js';

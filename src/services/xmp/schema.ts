@@ -24,8 +24,9 @@ export const XMP_NAMESPACES = {
 
 /**
  * Current schema version
+ * v3: Added CameraFingerprint, ProCameraSidecar, StorageInfo, FileTypeLearning
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /**
  * Source type classification
@@ -151,6 +152,88 @@ export interface MediaInfo {
 }
 
 /**
+ * Camera fingerprint info (from signature database)
+ */
+export interface CameraFingerprint {
+  /** Camera signature ID (from database) */
+  signatureId?: string;
+  /** Confidence of the match (0-1) */
+  matchConfidence?: number;
+  /** How the camera was matched */
+  matchedBy?: 'exif' | 'filename' | 'folder' | 'heuristic' | 'user';
+  /** Camera make */
+  make?: string;
+  /** Camera model */
+  model?: string;
+  /** Camera category (cinema, professional, consumer, etc.) */
+  category?: 'cinema' | 'professional' | 'prosumer' | 'consumer' | 'action' | 'drone' | 'smartphone' | 'scanner' | 'webcam' | 'unknown';
+  /** Media era classification */
+  era?: 'modern' | 'dadcam' | 'super8';
+  /** Camera release year */
+  yearReleased?: number;
+  /** Sensor dimensions (mm) */
+  sensorWidth?: number;
+  sensorHeight?: number;
+  /** Processing recommendations */
+  needsDeinterlace?: boolean;
+  audioChannels?: 'stereo' | 'mono' | 'none';
+  suggestedLut?: string;
+  /** Quality tier for sorting */
+  qualityTier?: 'pro' | 'prosumer' | 'consumer' | 'legacy';
+}
+
+/**
+ * XML sidecar data (from Sony, Canon, ARRI, etc.)
+ */
+export interface ProCameraSidecar {
+  /** XML format detected */
+  format?: 'sony_xdcam' | 'canon_xf' | 'arri' | 'fcpxml' | 'generic';
+  /** Source XML file path */
+  sourceXmlPath?: string;
+  /** Lens info from sidecar */
+  lens?: string;
+  /** Timecode from sidecar */
+  timecode?: string;
+  /** Reel/clip name */
+  reelName?: string;
+  /** Scene info */
+  scene?: string;
+  /** Take number */
+  take?: string;
+  /** Notes from sidecar */
+  notes?: string;
+}
+
+/**
+ * Storage detection info
+ */
+export interface StorageInfo {
+  /** Detected storage type */
+  type?: 'local' | 'network' | 'camera_media' | 'unknown';
+  /** Volume name (macOS) */
+  volumeName?: string;
+  /** Detected camera make from folder structure */
+  detectedMakeFromFolder?: string;
+  /** I/O configuration used */
+  ioBufferSize?: number;
+  ioConcurrency?: number;
+}
+
+/**
+ * File type learning status
+ */
+export interface FileTypeLearning {
+  /** Whether this extension was unknown at import time */
+  wasUnknownExtension?: boolean;
+  /** User-assigned category (if learned) */
+  learnedCategory?: string;
+  /** When the extension was learned */
+  learnedAt?: string;
+  /** Auto-suggested category (heuristic) */
+  suggestedCategory?: string;
+}
+
+/**
  * Import source device
  */
 export interface ImportSourceDevice {
@@ -161,6 +244,14 @@ export interface ImportSourceDevice {
   cameraInternalName?: string;
   phoneDeviceId?: string;
   tetheredConnection?: 'usb' | 'wifi' | 'bluetooth' | 'thunderbolt';
+  /** Camera fingerprint from signature database */
+  cameraFingerprint?: CameraFingerprint;
+  /** Pro camera XML sidecar data */
+  proCameraSidecar?: ProCameraSidecar;
+  /** Storage type detection */
+  storageInfo?: StorageInfo;
+  /** File type learning status */
+  fileTypeLearning?: FileTypeLearning;
 }
 
 /**
