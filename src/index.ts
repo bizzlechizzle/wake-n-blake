@@ -15,6 +15,8 @@ export {
   hashBlake3,
   hashSha256,
   hashSha512,
+  hashMd5,
+  hashXxhash64,
   hashBuffer,
   hashString,
   hashFileAll,
@@ -185,6 +187,8 @@ export {
   Blake3FullHashSchema,
   Sha256HashSchema,
   Sha512HashSchema,
+  Md5HashSchema,
+  Xxhash64HashSchema,
   AnyHashSchema,
 
   // ID schemas
@@ -217,6 +221,8 @@ export type {
   Blake3FullHash,
   Sha256Hash,
   Sha512Hash,
+  Md5Hash,
+  Xxhash64Hash,
   Blake3Id,
   Uuid,
   Ulid,
@@ -259,6 +265,91 @@ export {
   run as runCli,
   createCli
 } from './cli/index.js';
+
+// ============================================
+// MHL (Media Hash List)
+// ============================================
+
+export {
+  generateMhl,
+  mhlToXml,
+  writeMhl,
+  parseMhl,
+  parseMhlXml,
+  verifyMhl,
+  generateMhlFilename
+} from './services/mhl/index.js';
+
+export type {
+  MhlHashEntry,
+  MhlCreatorInfo,
+  MhlDocument,
+  MhlAlgorithm,
+  MhlGenerateOptions
+} from './services/mhl/index.js';
+
+// ============================================
+// BagIt (RFC 8493)
+// ============================================
+
+export {
+  createBag,
+  verifyBag
+} from './services/bagit/index.js';
+
+export type {
+  BagItAlgorithm,
+  BagItOptions,
+  BagItResult,
+  BagItVerifyResult
+} from './services/bagit/schemas.js';
+
+// ============================================
+// GPS ENRICHMENT
+// ============================================
+
+export {
+  enrichFilesWithGps,
+  collectMediaFiles
+} from './services/gps/index.js';
+
+export {
+  parseGpsFile,
+  detectFormat,
+  getTimedWaypoints,
+  getAllWaypoints
+} from './services/gps/parsers.js';
+
+export type {
+  Waypoint,
+  GpsDocument,
+  GpsTrack,
+  GpsEnrichOptions,
+  GpsMatch,
+  GpsEnrichResult
+} from './services/gps/schemas.js';
+
+// ============================================
+// PERCEPTUAL HASHING
+// ============================================
+
+export {
+  computePhash,
+  compareImages,
+  findSimilarImages,
+  hammingDistance,
+  similarityFromDistance
+} from './services/phash/index.js';
+
+export type {
+  PerceptualHash,
+  SimilarPair,
+  SimilarGroup,
+  PhashOptions,
+  PhashResult,
+  PhashCompareResult,
+  PhashAlgorithm
+} from './services/phash/schemas.js';
 
 // ============================================
 // VERSION

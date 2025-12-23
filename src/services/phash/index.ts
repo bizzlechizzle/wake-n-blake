@@ -182,6 +182,16 @@ async function computePHash(imagePath: string, size: number = 8): Promise<string
  * Calculate Hamming distance between two hashes
  */
 export function hammingDistance(hash1: string, hash2: string): number {
+  // Validate hex string format
+  const hexPattern = /^[a-f0-9]+$/i;
+  if (!hexPattern.test(hash1) || !hexPattern.test(hash2)) {
+    throw new Error('Invalid hash format: must be hexadecimal');
+  }
+
+  if (hash1.length !== hash2.length) {
+    throw new Error(`Hash length mismatch: ${hash1.length} vs ${hash2.length}`);
+  }
+
   const n1 = BigInt('0x' + hash1);
   const n2 = BigInt('0x' + hash2);
   let xor = n1 ^ n2;

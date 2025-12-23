@@ -32,6 +32,13 @@ export const bagitCommand = new Command('bagit')
     try {
       const resolvedDir = path.resolve(dir);
       const format = options.format as 'text' | 'json';
+
+      // Validate algorithm
+      const validAlgorithms = ['sha256', 'sha512'];
+      if (!validAlgorithms.includes(options.algorithm)) {
+        console.error(`Error: --algorithm must be one of: ${validAlgorithms.join(', ')}`);
+        process.exit(1);
+      }
       const algorithm = options.algorithm as BagItAlgorithm;
 
       if (options.verify) {

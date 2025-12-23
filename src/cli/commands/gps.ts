@@ -52,11 +52,25 @@ const enrichCommand = new Command('enrich')
         console.error(`Loading GPS data from ${path.basename(mapPath)}...`);
       }
 
+      // Validate numeric options
+      const toleranceSec = parseInt(options.tolerance, 10);
+      const timeOffset = parseInt(options.offset, 10);
+
+      if (isNaN(toleranceSec) || toleranceSec < 0 || toleranceSec > 86400) {
+        console.error('Error: --tolerance must be 0-86400 seconds');
+        process.exit(1);
+      }
+
+      if (isNaN(timeOffset) || timeOffset < -86400 || timeOffset > 86400) {
+        console.error('Error: --offset must be -86400 to +86400 seconds');
+        process.exit(1);
+      }
+
       // Enrich files
       const result = await enrichFilesWithGps(files, mapPath, {
         matchStrategy: options.strategy as MatchStrategy,
-        toleranceSec: parseInt(options.tolerance, 10),
-        timeOffset: parseInt(options.offset, 10),
+        toleranceSec,
+        timeOffset,
         recursive: options.recursive,
         overwriteExisting: options.overwrite,
         dryRun: options.dryRun

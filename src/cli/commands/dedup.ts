@@ -20,6 +20,10 @@ export const dedupCommand = new Command('dedup')
   .action(async (dir: string, options) => {
     try {
       const minSize = parseInt(options.minSize, 10);
+      if (isNaN(minSize) || minSize < 0) {
+        console.error('Error: --min-size must be a non-negative integer');
+        process.exit(1);
+      }
       const format = options.format as 'text' | 'json';
 
       if (!options.quiet) {

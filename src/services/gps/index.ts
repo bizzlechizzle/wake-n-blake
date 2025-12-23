@@ -11,6 +11,7 @@ import { readSidecar, sidecarExists } from '../xmp/reader.js';
 import { generateXmpContent } from '../xmp/writer.js';
 import { extractMetadata } from '../metadata/index.js';
 import { generateBlake3Id } from '../../core/id-generator.js';
+import { hashBlake3 } from '../../core/hasher.js';
 import type {
   Waypoint,
   GpsDocument,
@@ -297,16 +298,17 @@ async function updateFileGps(
       const { data } = await readSidecar(sidecarPath);
       sidecarData = data;
     } else {
-      // Create minimal sidecar data
+      // Create minimal sidecar data with real content hash
       const stats = await fs.stat(file);
+      const contentHash = await hashBlake3(file, { full: true });
       sidecarData = {
         schemaVersion: 2,
         sidecarCreated: new Date().toISOString(),
         sidecarUpdated: new Date().toISOString(),
-        contentHash: '0'.repeat(64), // Placeholder, should compute real hash
+        contentHash,
         hashAlgorithm: 'blake3',
         fileSize: stats.size,
-        verified: false,
+        verified: true,
         fileCategory: 'image',
         detectedMimeType: 'application/octet-stream',
         declaredExtension: path.extname(file),

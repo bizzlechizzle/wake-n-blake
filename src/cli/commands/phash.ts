@@ -33,6 +33,19 @@ export const phashCommand = new Command('phash')
       const algorithm = options.algorithm as PhashAlgorithm;
       const threshold = parseInt(options.threshold, 10);
 
+      // Validate threshold (0-64 for 64-bit hashes)
+      if (isNaN(threshold) || threshold < 0 || threshold > 64) {
+        console.error('Error: --threshold must be 0-64 (hamming distance for 64-bit hash)');
+        process.exit(1);
+      }
+
+      // Validate algorithm
+      const validAlgorithms = ['dhash', 'ahash', 'phash'];
+      if (!validAlgorithms.includes(options.algorithm)) {
+        console.error(`Error: --algorithm must be one of: ${validAlgorithms.join(', ')}`);
+        process.exit(1);
+      }
+
       // Compare mode: exactly two images
       if (options.compare) {
         if (paths.length !== 2) {

@@ -9,12 +9,12 @@ import * as crypto from 'node:crypto';
 import { createHash as createBlake3Hash } from 'blake3';
 import xxhashAddon from 'xxhash-addon';
 const { XXHash64 } = xxhashAddon;
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Algorithm, HashResult } from '../schemas/index.js';
 import { getBufferSize } from '../utils/network.js';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 // Native b3sum search paths
 const B3SUM_PATHS = [
@@ -64,9 +64,9 @@ export async function findNativeB3sum(): Promise<string | null> {
     }
   }
 
-  // Try PATH
+  // Try PATH using which command (safe - no user input)
   try {
-    const { stdout } = await execAsync('which b3sum');
+    const { stdout } = await execFileAsync('which', ['b3sum']);
     const foundPath = stdout.trim();
     if (foundPath) {
       nativeB3sumPath = foundPath;
@@ -89,6 +89,7 @@ export async function hasNativeB3sum(): Promise<boolean> {
 
 /**
  * Calculate BLAKE3 hash using native b3sum
+ * Uses execFile with argument arrays to prevent command injection
  */
 async function hashBlake3Native(
   filePath: string,
@@ -97,7 +98,13 @@ async function hashBlake3Native(
   const b3sum = await findNativeB3sum();
   if (!b3sum) throw new Error('Native b3sum not available');
 
-  const { stdout } = await execAsync(`"${b3sum}" --length ${truncate} "${filePath}"`);
+  // Validate truncate is a positive integer to prevent injection
+  if (!Number.isInteger(truncate) || truncate < 1 || truncate > 32) {
+    throw new Error(`Invalid truncate value: ${truncate}`);
+  }
+
+  // Use execFile with argument array to prevent command injection
+  const { stdout } = await execFileAsync(b3sum, ['--length', String(truncate), filePath]);
   return stdout.trim().split(/\s+/)[0].toLowerCase();
 }
 
@@ -108,6 +115,11 @@ async function hashBlake3Wasm(
   filePath: string,
   truncate: number = 8
 ): Promise<string> {
+  // Validate truncate parameter (same as native)
+  if (!Number.isInteger(truncate) || truncate < 1 || truncate > 32) {
+    throw new Error(`Invalid truncate value: ${truncate}`);
+  }
+
   const bufferSize = getBufferSize(filePath);
   const hasher = createBlake3Hash();
 
