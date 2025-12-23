@@ -5,7 +5,7 @@
 
 import { Command } from 'commander';
 import * as path from 'node:path';
-import { formatError, formatSuccess } from '../output.js';
+import { formatError } from '../output.js';
 import {
   detectSourceDevice,
   getRemovableVolumes,

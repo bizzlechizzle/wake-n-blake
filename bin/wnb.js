@@ -1,2 +1,8 @@
 #!/usr/bin/env node
-import '../dist/index.js';
+import { runCli } from '../dist/index.js';
+
+// Run CLI
+runCli().catch((err) => {
+  console.error('Fatal error:', err);
+  process.exit(1);
+});

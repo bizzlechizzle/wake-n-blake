@@ -4,7 +4,6 @@
  */
 
 import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
 import { hashFile } from '../core/hasher.js';
 import { scanDirectory } from './scanner.js';
 

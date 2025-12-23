@@ -261,6 +261,146 @@ Example sidecar structure:
 - Optional: ffprobe (for detailed video metadata)
 - Optional: MediaInfo (for codec details)
 
+## Using as a Library
+
+Wake-n-Blake exports all core functions for programmatic use:
+
+```typescript
+import {
+  // Hashing
+  hashFile, hashBuffer, hashString, verifyFile,
+
+  // ID Generation
+  generateBlake3Id, generateUuid, generateULID,
+
+  // File Operations
+  copyWithHash, fastHash,
+
+  // Import Pipeline
+  runImport,
+
+  // XMP Sidecars
+  writeSidecar, readSidecar, verifySidecar,
+
+  // Device Detection
+  detectSourceDevice, getRemovableVolumes,
+
+  // Schemas & Types
+  Blake3HashSchema, type HashResult, type ImportSession
+} from 'wake-n-blake';
+
+// Hash a file
+const result = await hashFile('/path/to/file', 'blake3');
+console.log(result.hash);  // '1234567890abcdef'
+
+// Run import pipeline
+const session = await runImport('/source', '/destination', {
+  dedup: true,
+  sidecar: true,
+  onProgress: (s) => console.log(s.processedFiles)
+});
+```
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for full API documentation.
+
+## Additional Commands
+
+### Safe Copy
+
+```bash
+# Copy with inline hashing and verification
+wnb copy source.jpg dest.jpg
+
+# Copy without verification
+wnb copy source.jpg dest.jpg --no-verify
+```
+
+### Fast Hash (Sampling)
+
+```bash
+# Quick hash for large files (samples beginning, middle, end)
+wnb fast largefile.iso
+
+# Useful for deduplication pre-screening
+wnb fast *.iso --format json
+```
+
+### Diagnostics
+
+```bash
+# System info and available tools
+wnb diagnose
+
+# Check blake3 performance
+wnb diagnose --benchmark
+```
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0 | Success |
+| 1 | General error / hash mismatch |
+| 2 | File not found |
+| 3 | Invalid input |
+| 4 | Partial failure (some files errored) |
+| 5 | Aborted by user |
+
+## Configuration
+
+### .wnbignore
+
+Create a `.wnbignore` file to exclude patterns:
+
+```
+# Ignore system files
+.DS_Store
+Thumbs.db
+*.tmp
+
+# Ignore directories
+node_modules/
+.git/
+```
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `WNB_BUFFER_SIZE` | Buffer size for local files | 64KB |
+| `WNB_NETWORK_BUFFER` | Buffer size for network files | 256KB |
+| `WNB_WORKERS` | Worker pool size | CPU count |
+
+## Troubleshooting
+
+### "blake3 native not found"
+
+This is informational only. Wake-n-Blake uses WASM blake3 by default.
+For maximum speed, install native b3sum:
+
+```bash
+# macOS
+brew install b3sum
+
+# Linux
+cargo install b3sum
+
+# Windows
+scoop install b3sum
+```
+
+### Slow imports over network
+
+Use smaller batch sizes and increase buffer:
+
+```bash
+WNB_NETWORK_BUFFER=1048576 wnb import /network/share /local
+```
+
+### Permission errors on macOS
+
+Grant Full Disk Access to Terminal/iTerm in System Preferences > Privacy.
+
 ## Development
 
 ```bash
@@ -275,7 +415,12 @@ npm test
 
 # Run in dev mode
 npm run dev
+
+# Type check
+npm run typecheck
 ```
+
+See [DEVELOPMENT.md](DEVELOPMENT.md) for architecture and contribution guide.
 
 ## License
 

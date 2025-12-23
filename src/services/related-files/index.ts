@@ -10,9 +10,7 @@
  * - Panorama sets
  */
 
-import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { detectFileType } from '../file-type/detector.js';
 import type { RelationType } from '../xmp/schema.js';
 
 /**
@@ -94,7 +92,7 @@ export async function findRelatedFiles(
   }
 
   // Find Live Photo pairs
-  for (const [baseKey, baseFiles] of byBasename) {
+  for (const [_baseKey, baseFiles] of byBasename) {
     const livePhotoGroup = await detectLivePhoto(baseFiles);
     if (livePhotoGroup) {
       groups.push(livePhotoGroup);
@@ -103,7 +101,7 @@ export async function findRelatedFiles(
   }
 
   // Find RAW+JPEG pairs
-  for (const [baseKey, baseFiles] of byBasename) {
+  for (const [_baseKey2, baseFiles] of byBasename) {
     // Skip already processed files
     const remaining = baseFiles.filter(f => !processed.has(f));
     if (remaining.length < 2) continue;
@@ -116,7 +114,7 @@ export async function findRelatedFiles(
   }
 
   // Find RAW sidecar pairs
-  for (const [baseKey, baseFiles] of byBasename) {
+  for (const [_baseKey3, baseFiles] of byBasename) {
     const remaining = baseFiles.filter(f => !processed.has(f));
     if (remaining.length < 2) continue;
 
@@ -128,7 +126,7 @@ export async function findRelatedFiles(
   }
 
   // Find burst sequences by directory
-  for (const [dir, dirFiles] of byDir) {
+  for (const [_dir, dirFiles] of byDir) {
     const remaining = dirFiles.filter(f => !processed.has(f));
     const burstGroups = await detectBurstSequences(remaining);
     for (const group of burstGroups) {
@@ -138,7 +136,7 @@ export async function findRelatedFiles(
   }
 
   // Find HDR+SDR pairs
-  for (const [dir, dirFiles] of byDir) {
+  for (const [_dir2, dirFiles] of byDir) {
     const remaining = dirFiles.filter(f => !processed.has(f));
     const hdrGroups = detectHdrSdrPairs(remaining);
     for (const group of hdrGroups) {
@@ -310,7 +308,7 @@ async function detectBurstSequences(files: string[]): Promise<RelatedFileGroup[]
   }
 
   // Create groups from patterns with 3+ files
-  for (const [key, entries] of burstPatterns) {
+  for (const [_key, entries] of burstPatterns) {
     if (entries.length < 3) continue;
 
     // Sort by sequence number

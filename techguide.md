@@ -1,4 +1,4 @@
-# Wake-n-Blake Technical Guide v0.5.0
+# Wake-n-Blake Technical Guide v0.1.0
 
 **The Universal ID & Hash Utility**
 

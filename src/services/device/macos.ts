@@ -12,7 +12,6 @@ import * as fs from 'node:fs/promises';
 import type {
   PlatformDeviceDetector,
   DetectedUSBDevice,
-  DetectedCardReader,
   DetectedMedia,
   MountedVolume,
   DeviceChain,
@@ -140,7 +139,6 @@ export class MacOSDeviceDetector implements PlatformDeviceDetector {
 
       // Determine device type
       const nameLC = (usbInfo.deviceName || '').toLowerCase();
-      const mfrLC = (usbInfo.manufacturer || '').toLowerCase();
 
       // Check if it's a card reader
       const isCardReader = CARD_READER_VENDORS.has(usbInfo.manufacturer || '') ||
@@ -237,7 +235,7 @@ export class MacOSDeviceDetector implements PlatformDeviceDetector {
       const { stdout } = await execAsync('system_profiler SPUSBDataType -json');
       const data = JSON.parse(stdout);
 
-      const extractDevices = (items: any[], parent?: any) => {
+      const extractDevices = (items: any[], _parent?: any): void => {
         for (const item of items || []) {
           if (item.vendor_id && item.product_id) {
             devices.push({

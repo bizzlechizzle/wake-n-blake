@@ -6,7 +6,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { loadIgnorePatterns, createIgnore } from '../utils/ignore.js';
-import type { Ignore } from 'ignore';
 
 export interface ScanOptions {
   recursive?: boolean;

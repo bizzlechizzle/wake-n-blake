@@ -6,7 +6,7 @@
 
 import * as fs from 'node:fs/promises';
 import { createHash as createBlake3Hash } from 'blake3';
-import { XMP_NAMESPACES, SCHEMA_VERSION, type XmpSidecarData, type CustodyEvent } from './schema.js';
+import { XMP_NAMESPACES, SCHEMA_VERSION, type XmpSidecarData } from './schema.js';
 
 /**
  * Generate XMP sidecar content

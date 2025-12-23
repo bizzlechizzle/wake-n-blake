@@ -216,6 +216,205 @@ export const CustodyEventSchema = z.object({
   eventDetails: z.string().optional()
 });
 
+export const RelationTypeSchema = z.enum([
+  'raw_jpeg_pair', 'raw_sidecar', 'video_audio', 'video_proxy',
+  'burst_sequence', 'hdr_bracket', 'panorama_set', 'focus_stack',
+  'stereo_pair', 'live_photo', 'motion_photo', 'sdr_hdr_pair',
+  'drone_telemetry', 'document_assets'
+]);
+
+export const PhotoMetadataSchema = z.object({
+  creationDevice: z.string().optional(),
+  creationSoftware: z.string().optional(),
+  captureDate: z.string().optional(),
+  gpsLatitude: z.number().optional(),
+  gpsLongitude: z.number().optional(),
+  gpsAltitude: z.number().optional(),
+  lensModel: z.string().optional(),
+  focalLength: z.string().optional(),
+  aperture: z.string().optional(),
+  shutterSpeed: z.string().optional(),
+  iso: z.number().optional(),
+  colorSpace: z.string().optional(),
+  bitDepth: z.number().optional(),
+  iccProfile: z.string().optional()
+});
+
+export const VideoMetadataSchema = z.object({
+  container: z.string().optional(),
+  codec: z.string().optional(),
+  resolution: z.string().optional(),
+  width: z.number().optional(),
+  height: z.number().optional(),
+  frameRate: z.number().optional(),
+  frameRateMode: z.enum(['constant', 'variable']).optional(),
+  bitRate: z.number().optional(),
+  duration: z.number().optional(),
+  frameCount: z.number().optional(),
+  colorSpace: z.string().optional(),
+  hdr: z.string().optional(),
+  scanType: z.enum(['progressive', 'interlaced']).optional(),
+  audioCodec: z.string().optional(),
+  audioChannels: z.number().optional(),
+  audioSampleRate: z.number().optional(),
+  audioBitRate: z.number().optional(),
+  audioBitDepth: z.number().optional(),
+  timecodeStart: z.string().optional(),
+  chapterCount: z.number().optional()
+});
+
+export const AudioMetadataSchema = z.object({
+  album: z.string().optional(),
+  artist: z.string().optional(),
+  title: z.string().optional(),
+  track: z.string().optional(),
+  disc: z.string().optional(),
+  year: z.number().optional(),
+  genre: z.string().optional(),
+  duration: z.number().optional(),
+  format: z.string().optional(),
+  hasArt: z.boolean().optional(),
+  replayGain: z.number().optional(),
+  bpm: z.number().optional(),
+  comment: z.string().optional()
+});
+
+export const DocumentMetadataSchema = z.object({
+  title: z.string().optional(),
+  author: z.string().optional(),
+  subject: z.string().optional(),
+  keywords: z.array(z.string()).optional(),
+  created: z.string().optional(),
+  modified: z.string().optional(),
+  pageCount: z.number().optional(),
+  wordCount: z.number().optional(),
+  language: z.string().optional(),
+  pdfVersion: z.string().optional(),
+  pdfProducer: z.string().optional(),
+  pdfEncrypted: z.boolean().optional(),
+  pdfHasForm: z.boolean().optional(),
+  pdfHasSignature: z.boolean().optional(),
+  officeApplication: z.string().optional(),
+  officeTemplate: z.string().optional()
+});
+
+export const XmpSidecarSchema = z.object({
+  // Sidecar self-integrity
+  schemaVersion: z.number().int().min(1),
+  sidecarCreated: z.string(),
+  sidecarUpdated: z.string(),
+
+  // Core identity
+  contentHash: Blake3FullHashSchema,
+  hashAlgorithm: z.literal('blake3'),
+  fileSize: z.number().int().nonnegative(),
+  verified: z.boolean(),
+
+  // File classification
+  fileCategory: FileCategorySchema,
+  fileSubcategory: z.string().optional(),
+  detectedMimeType: z.string(),
+  declaredExtension: z.string(),
+  extensionMismatch: z.boolean().optional(),
+  formatValid: z.boolean().optional(),
+
+  // Source provenance
+  sourcePath: z.string(),
+  sourceFilename: z.string(),
+  sourceHost: z.string(),
+  sourceVolume: z.string().optional(),
+  sourceVolumeSerial: z.string().optional(),
+  sourceType: SourceTypeSchema,
+
+  // Import source device
+  sourceDevice: ImportSourceDeviceSchema.optional(),
+
+  // Timestamps
+  originalMtime: z.string(),
+  originalCtime: z.string().optional(),
+  originalBtime: z.string().optional(),
+  originalAtime: z.string().optional(),
+  sourceTimezone: z.string().optional(),
+  importTimezone: z.string().optional(),
+
+  // Import context
+  importTimestamp: z.string(),
+  sessionId: Blake3IdSchema,
+  toolVersion: z.string(),
+  importUser: z.string(),
+  importHost: z.string(),
+  importPlatform: z.enum(['darwin', 'linux', 'win32']),
+  importOSVersion: z.string().optional(),
+  importMethod: z.enum(['copy', 'move', 'hardlink', 'symlink']).optional(),
+
+  // Batch context
+  batchId: z.string().optional(),
+  batchName: z.string().optional(),
+  batchDescription: z.string().optional(),
+  batchFileCount: z.number().optional(),
+  batchSequence: z.number().optional(),
+  batchTotalBytes: z.number().optional(),
+
+  // Deduplication
+  dedupStatus: z.enum(['unique', 'duplicate', 'hardlinked']).optional(),
+  duplicateOf: z.string().optional(),
+  duplicateCount: z.number().optional(),
+
+  // File renaming
+  wasRenamed: z.boolean().optional(),
+  destFilename: z.string().optional(),
+  renameReason: z.enum(['hash_naming', 'collision', 'sanitization']).optional(),
+
+  // Related files
+  relatedFiles: z.array(z.string()).optional(),
+  relationType: RelationTypeSchema.optional(),
+  isPrimaryFile: z.boolean().optional(),
+  isLivePhoto: z.boolean().optional(),
+  livePhotoRole: z.enum(['image', 'video']).optional(),
+  livePhotoPairHash: z.string().optional(),
+  motionHidden: z.boolean().optional(),
+  sdrDuplicate: z.boolean().optional(),
+  hdrPrimaryHash: z.string().optional(),
+
+  // Inherited metadata
+  inheritedXMP: z.string().optional(),
+  inheritedSidecar: z.string().optional(),
+  inheritedSidecarFormat: z.enum(['xmp', 'json', 'xml']).optional(),
+
+  // Category-specific metadata
+  photo: PhotoMetadataSchema.optional(),
+  video: VideoMetadataSchema.optional(),
+  audio: AudioMetadataSchema.optional(),
+  document: DocumentMetadataSchema.optional(),
+
+  // Cloud/download provenance
+  downloadURL: z.string().optional(),
+  downloadTimestamp: z.string().optional(),
+  downloadReferrer: z.string().optional(),
+  cloudService: z.string().optional(),
+  cloudPath: z.string().optional(),
+  cloudSharedBy: z.string().optional(),
+  cloudShareDate: z.string().optional(),
+  emailSubject: z.string().optional(),
+  emailSender: z.string().optional(),
+  emailDate: z.string().optional(),
+
+  // Platform-specific
+  quarantineOrigin: z.string().optional(),
+  quarantineTimestamp: z.string().optional(),
+  quarantineAgent: z.string().optional(),
+  zoneIdentifier: z.string().optional(),
+
+  // Chain of custody
+  custodyChain: z.array(CustodyEventSchema),
+  firstSeen: z.string(),
+  eventCount: z.number().int().nonnegative(),
+
+  // Errors/warnings
+  importWarnings: z.array(z.string()).optional(),
+  importErrors: z.array(z.string()).optional()
+});
+
 export const ImportSessionSchema = z.object({
   id: Blake3IdSchema,
   status: ImportStatusSchema,
@@ -272,6 +471,12 @@ export type CardReaderInfo = z.infer<typeof CardReaderInfoSchema>;
 export type MediaInfoZ = z.infer<typeof MediaInfoSchema>;
 export type ImportSourceDevice = z.infer<typeof ImportSourceDeviceSchema>;
 export type CustodyEvent = z.infer<typeof CustodyEventSchema>;
+export type RelationType = z.infer<typeof RelationTypeSchema>;
+export type PhotoMetadata = z.infer<typeof PhotoMetadataSchema>;
+export type VideoMetadata = z.infer<typeof VideoMetadataSchema>;
+export type AudioMetadata = z.infer<typeof AudioMetadataSchema>;
+export type DocumentMetadata = z.infer<typeof DocumentMetadataSchema>;
+export type XmpSidecar = z.infer<typeof XmpSidecarSchema>;
 
 // ============================================
 // VALIDATION HELPERS

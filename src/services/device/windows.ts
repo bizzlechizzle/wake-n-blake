@@ -7,12 +7,9 @@
 
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import * as path from 'node:path';
-import * as fs from 'node:fs/promises';
 import type {
   PlatformDeviceDetector,
   DetectedUSBDevice,
-  DetectedCardReader,
   DetectedMedia,
   MountedVolume,
   DeviceChain,

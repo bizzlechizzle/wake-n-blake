@@ -188,10 +188,9 @@ export const PHONE_MANUFACTURERS = new Set([
 export function inferMediaType(
   capacity: number,
   deviceName?: string,
-  manufacturer?: string
+  _manufacturer?: string
 ): MediaType {
   const nameLC = (deviceName || '').toLowerCase();
-  const mfrLC = (manufacturer || '').toLowerCase();
 
   // Check for NVMe/SSD indicators
   if (nameLC.includes('nvme') || nameLC.includes('pcie')) return 'nvme';

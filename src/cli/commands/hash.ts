@@ -91,7 +91,7 @@ export const hashCommand = new Command('hash')
 
           try {
             const results: HashResult[] = [];
-            const poolResults = await pool.hashFiles(files, algorithm, (done, total, file) => {
+            const poolResults = await pool.hashFiles(files, algorithm, (done, total, _file) => {
               if (!options.quiet) {
                 process.stderr.write(`\r${done}/${total} files...`);
               }

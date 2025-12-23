@@ -138,7 +138,7 @@ export async function extractVideoMetadata(filePath: string): Promise<VideoMetad
   }
 
   // Parse frame rate
-  let frameRate = getNumber(tags, 'VideoFrameRate');
+  const frameRate = getNumber(tags, 'VideoFrameRate');
 
   return {
     container: getString(tags, 'FileType'),

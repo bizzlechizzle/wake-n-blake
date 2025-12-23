@@ -3,7 +3,7 @@
  * Runs hashing operations in parallel worker threads
  */
 
-import { parentPort, workerData } from 'node:worker_threads';
+import { parentPort } from 'node:worker_threads';
 import * as fs from 'node:fs';
 import { createHash as blake3Hash } from 'blake3';
 import { createHash as cryptoHash } from 'node:crypto';

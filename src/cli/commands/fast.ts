@@ -6,7 +6,7 @@
 import { Command } from 'commander';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import { fastHash, fastHashBatch } from '../../core/fast-hasher.js';
+import { fastHash } from '../../core/fast-hasher.js';
 import { scanDirectory } from '../../services/scanner.js';
 import { formatError, formatSize, formatDuration } from '../output.js';
 

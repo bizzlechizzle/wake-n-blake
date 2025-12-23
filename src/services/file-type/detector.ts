@@ -6,7 +6,6 @@
  */
 
 import { fileTypeFromFile, fileTypeFromBuffer } from 'file-type';
-import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 
 /**

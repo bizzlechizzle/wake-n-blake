@@ -5,13 +5,12 @@
 
 import * as fs from 'node:fs';
 import * as fsp from 'node:fs/promises';
-import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { createHash as createBlake3Hash } from 'blake3';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { Algorithm, HashResult } from '../schemas/index.js';
-import { getBufferSize, isNetworkPath } from '../utils/network.js';
+import { getBufferSize } from '../utils/network.js';
 
 const execAsync = promisify(exec);
 

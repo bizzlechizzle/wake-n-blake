@@ -30,7 +30,7 @@ export const dedupCommand = new Command('dedup')
         recursive: options.recursive,
         minSize,
         excludePatterns: options.exclude,
-        onProgress: options.quiet ? undefined : (current, total, file) => {
+        onProgress: options.quiet ? undefined : (current, total, _file) => {
           process.stderr.write(`\r${current}/${total} files...`);
         }
       });
@@ -98,7 +98,7 @@ export const dedupCommand = new Command('dedup')
     }
   });
 
-function printDedupResult(result: ReturnType<typeof findDuplicates> extends Promise<infer T> ? T : never, quiet: boolean): void {
+function printDedupResult(result: ReturnType<typeof findDuplicates> extends Promise<infer T> ? T : never, _quiet: boolean): void {
   console.log('Dedup Summary:');
   console.log(`  Total files:      ${result.totalFiles}`);
   console.log(`  Unique files:     ${result.uniqueFiles}`);

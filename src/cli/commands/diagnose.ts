@@ -8,7 +8,7 @@ import * as os from 'node:os';
 import * as fs from 'node:fs/promises';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
-import { findNativeB3sum, hasNativeB3sum } from '../../core/hasher.js';
+import { findNativeB3sum } from '../../core/hasher.js';
 import { formatError } from '../output.js';
 
 const execAsync = promisify(exec);
@@ -181,7 +181,7 @@ async function runDiagnostics(): Promise<DiagnoseResult> {
   };
 }
 
-function printDiagnostics(result: DiagnoseResult, verbose: boolean = false): void {
+function printDiagnostics(result: DiagnoseResult, _verbose: boolean = false): void {
   console.log('BLAKE3 Support');
   console.log(`├── Native b3sum: ${result.blake3.native.available
     ? `${result.blake3.native.path}${result.blake3.native.version ? ` (${result.blake3.native.version})` : ''}`

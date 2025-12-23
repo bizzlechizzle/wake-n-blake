@@ -6,17 +6,16 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as os from 'node:os';
-import { ulid } from 'ulid';
 import { scanDirectory } from './scanner.js';
-import { hashFile, hashBlake3 } from '../core/hasher.js';
+import { hashFile } from '../core/hasher.js';
 import { copyWithHash } from '../core/copier.js';
 import { generateBlake3Id } from '../core/id-generator.js';
 import type { Manifest, ManifestEntry } from '../schemas/index.js';
 import { detectFileType, isSidecarFile, isSkippedFile } from './file-type/detector.js';
 import { writeSidecar } from './xmp/writer.js';
-import { detectSourceDevice, getSourceType, getDeviceChain } from './device/index.js';
+import { detectSourceDevice, getSourceType } from './device/index.js';
 import { extractMetadata, cleanup as cleanupMetadata } from './metadata/index.js';
-import { findRelatedFiles, isPrimaryFile, shouldHideFile } from './related-files/index.js';
+import { findRelatedFiles, isPrimaryFile } from './related-files/index.js';
 import type { XmpSidecarData, CustodyEvent, ImportSourceDevice, SourceType, FileCategory } from './xmp/schema.js';
 import { SCHEMA_VERSION } from './xmp/schema.js';
 
@@ -411,7 +410,7 @@ export async function runImport(
             session.renamedFiles++;
             onFile?.(file, 'renamed');
           }
-        } catch (err: any) {
+        } catch {
           // Renaming is non-fatal, just log and continue
           onFile?.(file, 'rename-failed');
         }
@@ -552,7 +551,7 @@ export async function runImport(
           file.sidecarPath = sidecarPath;
           session.sidecarFiles++;
           onFile?.(file, 'sidecar-generated');
-        } catch (err: any) {
+        } catch {
           // Sidecar generation is non-fatal
           onFile?.(file, 'sidecar-failed');
         }

@@ -12,7 +12,6 @@ import * as fs from 'node:fs/promises';
 import type {
   PlatformDeviceDetector,
   DetectedUSBDevice,
-  DetectedCardReader,
   DetectedMedia,
   MountedVolume,
   DeviceChain,
@@ -50,7 +49,7 @@ export class LinuxDeviceDetector implements PlatformDeviceDetector {
       );
       const data = JSON.parse(stdout);
 
-      const processDevice = async (device: any, parent?: any) => {
+      const processDevice = async (device: any, _parent?: any): Promise<void> => {
         if (device.mountpoint && (device.rm || device.hotplug)) {
           const volume = await this.getVolumeFromLsblk(device);
           if (volume) volumes.push(volume);
@@ -72,7 +71,7 @@ export class LinuxDeviceDetector implements PlatformDeviceDetector {
       try {
         const mounts = await fs.readFile('/proc/mounts', 'utf-8');
         for (const line of mounts.split('\n')) {
-          const [device, mountPoint, fsType] = line.split(' ');
+          const [_device, mountPoint] = line.split(' ');
           if (mountPoint?.startsWith('/media/') || mountPoint?.startsWith('/mnt/')) {
             const volume = await this.getVolumeInfo(mountPoint);
             if (volume) volumes.push(volume);
@@ -152,12 +151,16 @@ export class LinuxDeviceDetector implements PlatformDeviceDetector {
       try {
         const { stdout: blkid } = await execAsync(`blkid -o value -s LABEL "${device}"`);
         if (blkid.trim()) volumeName = blkid.trim();
-      } catch {}
+      } catch {
+        // Label not available
+      }
 
       try {
         const { stdout: uuid } = await execAsync(`blkid -o value -s UUID "${device}"`);
         if (uuid.trim()) volumeUUID = uuid.trim();
-      } catch {}
+      } catch {
+        // UUID not available
+      }
 
       return {
         path: device,
@@ -203,7 +206,6 @@ export class LinuxDeviceDetector implements PlatformDeviceDetector {
       chain.connectionType = 'usb';
 
       const nameLC = (usbInfo.deviceName || '').toLowerCase();
-      const mfrLC = (usbInfo.manufacturer || '').toLowerCase();
 
       // Check if it's a card reader
       const isCardReader = CARD_READER_VENDORS.has(usbInfo.manufacturer || '') ||
@@ -299,11 +301,15 @@ export class LinuxDeviceDetector implements PlatformDeviceDetector {
 
         try {
           serial = (await fs.readFile(`${busPath}/serial`, 'utf-8')).trim();
-        } catch {}
+        } catch {
+          // Serial not available
+        }
 
         try {
           manufacturer = (await fs.readFile(`${busPath}/manufacturer`, 'utf-8')).trim();
-        } catch {}
+        } catch {
+          // Manufacturer not available
+        }
 
         devices.push({
           vendorId: `0x${vendorId}`,
@@ -404,7 +410,9 @@ export class LinuxDeviceDetector implements PlatformDeviceDetector {
       let manufacturer: string | undefined;
       try {
         manufacturer = (await fs.readFile(`/sys/block/${deviceBase}/device/vendor`, 'utf-8')).trim();
-      } catch {}
+      } catch {
+        // Vendor not available
+      }
 
       return {
         type: inferMediaType(volume.totalSize, volume.volumeName, manufacturer),
