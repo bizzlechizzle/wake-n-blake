@@ -16,6 +16,9 @@ import { importCommand } from './commands/import.js';
 import { dedupCommand } from './commands/dedup.js';
 import { renameCommand } from './commands/rename.js';
 import { fastCommand } from './commands/fast.js';
+import { sidecarCommand } from './commands/sidecar.js';
+import { deviceCommand } from './commands/device.js';
+import { metaCommand } from './commands/meta.js';
 
 const VERSION = '0.1.0';
 
@@ -49,6 +52,11 @@ export function createCli(): Command {
   program.addCommand(dedupCommand);
   program.addCommand(renameCommand);
   program.addCommand(diagnoseCommand);
+
+  // XMP and device operations
+  program.addCommand(sidecarCommand);
+  program.addCommand(deviceCommand);
+  program.addCommand(metaCommand);
 
   return program;
 }

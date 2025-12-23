@@ -1,4 +1,4 @@
-# Wake-n-Blake Technical Guide v0.2.0
+# Wake-n-Blake Technical Guide v0.5.0
 
 **The Universal ID & Hash Utility**
 
@@ -50,9 +50,32 @@ wnb copy <src> <dst>                 # Copy with inline BLAKE3 verification
 wnb copy <dir> <dst> -r --verify     # Recursive with double-verify
 
 # IMPORT PIPELINE
-wnb import <src> <dst>               # Full pipeline: scan→hash→copy→validate
+wnb import <src> <dst>               # Full pipeline: scan→hash→copy→validate→sidecar
 wnb import <src> <dst> --resume      # Resume from checkpoint
 wnb import <src> <dst> --dedup       # Skip duplicates by hash
+wnb import <src> <dst> -P            # Keep original filenames (default: blake16)
+wnb import <src> <dst> -a            # Archive mode (preserve sidecar history)
+wnb import <src> <dst> -S            # Skip XMP sidecar generation
+wnb import <src> <dst> -b "Wedding"  # Batch name for grouping
+
+# XMP SIDECAR OPERATIONS
+wnb sidecar <file>                   # Show sidecar contents
+wnb sidecar <file> --create          # Create sidecar for existing file
+wnb sidecar <file> --verify          # Verify sidecar integrity
+wnb sidecar <dir> -r --audit         # Audit all sidecars in directory
+wnb sidecar <file> --history         # Show custody chain
+
+# SOURCE DEVICE DETECTION
+wnb device <path>                    # Detect import source device info
+wnb device /Volumes/SDCARD           # Show USB, card reader, media serial
+wnb device --json                    # JSON output for scripting
+
+# METADATA EXTRACTION
+wnb meta <file>                      # Extract all metadata (auto-detect type)
+wnb meta <file> --raw                # Raw output from all tools
+wnb meta <file> -f json              # JSON output
+wnb meta <dir> -r --summary          # Summarize metadata for directory
+wnb meta <file> --tools              # Show which tools were used
 
 # UTILITIES
 wnb diagnose                         # System capabilities check
@@ -100,7 +123,10 @@ wake-n-blake/
 │   │   │   ├── verify.ts    # wnb verify
 │   │   │   ├── manifest.ts  # wnb manifest, wnb check, wnb audit
 │   │   │   ├── copy.ts      # wnb copy
-│   │   │   ├── import.ts    # wnb import
+│   │   │   ├── import.ts    # wnb import (with XMP sidecar)
+│   │   │   ├── sidecar.ts   # wnb sidecar
+│   │   │   ├── device.ts    # wnb device
+│   │   │   ├── meta.ts      # wnb meta
 │   │   │   ├── dedup.ts     # wnb dedup
 │   │   │   ├── rename.ts    # wnb rename --embed
 │   │   │   └── diagnose.ts  # wnb diagnose
@@ -118,7 +144,22 @@ wake-n-blake/
 │   │   ├── scanner.ts       # File enumeration + .wnbignore
 │   │   ├── validator.ts     # Post-copy verification
 │   │   ├── deduplicator.ts  # Duplicate detection
-│   │   └── worker-pool.ts   # Parallel processing
+│   │   ├── worker-pool.ts   # Parallel processing
+│   │   ├── xmp/
+│   │   │   ├── writer.ts    # XMP sidecar generator
+│   │   │   ├── reader.ts    # XMP sidecar parser
+│   │   │   ├── embedder.ts  # Embed XMP in files (JPEG, MP4, etc.)
+│   │   │   └── schema.ts    # XMP namespace definitions
+│   │   ├── device/
+│   │   │   ├── detector.ts  # Source device detection
+│   │   │   ├── macos.ts     # macOS-specific (ioreg, diskutil)
+│   │   │   ├── linux.ts     # Linux-specific (udevadm, sysfs)
+│   │   │   └── windows.ts   # Windows-specific (PowerShell)
+│   │   ├── metadata/
+│   │   │   ├── exiftool.ts  # ExifTool wrapper
+│   │   │   └── file-type.ts # Magic bytes detection
+│   │   └── related-files/
+│   │       └── detector.ts  # Live Photo, RAW+JPEG pairs
 │   ├── schemas/
 │   │   └── index.ts         # Zod validation schemas
 │   ├── utils/
@@ -148,7 +189,9 @@ wake-n-blake/
     "uuid": "^9.0.0",
     "ulid": "^2.3.0",
     "ignore": "^5.3.0",
-    "ora": "^8.0.0"
+    "ora": "^8.0.0",
+    "file-type": "^19.0.0",
+    "exiftool-vendored": "^28.0.0"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -159,6 +202,10 @@ wake-n-blake/
   }
 }
 ```
+
+**XMP/Sidecar Dependencies:**
+- `file-type`: Magic bytes detection (MIME type from content, not extension)
+- `exiftool-vendored`: ExifTool wrapper for EXIF/XMP extraction and embedding
 
 ---
 
@@ -359,6 +406,139 @@ export const ImportSessionSchema = z.object({
 });
 
 // ============================================
+// XMP SIDECAR SCHEMAS
+// ============================================
+
+export const SourceTypeSchema = z.enum([
+  'memory_card', 'camera_direct', 'phone_direct', 'local_disk',
+  'network_share', 'cloud_sync', 'cloud_download', 'web_download',
+  'email_attachment', 'messaging_app', 'airdrop', 'bluetooth',
+  'optical_disc', 'tape', 'ftp_sftp', 'version_control',
+  'backup_restore', 'forensic_recovery', 'unknown'
+]);
+
+export const FileCategorySchema = z.enum([
+  'image', 'video', 'audio', 'document', 'archive',
+  'sidecar', 'executable', 'data', 'other'
+]);
+
+export const MediaTypeSchema = z.enum([
+  'sd', 'cf', 'cfexpress', 'ssd', 'hdd', 'nvme'
+]);
+
+export const CustodyEventActionSchema = z.enum([
+  'creation', 'ingestion', 'message_digest_calculation', 'fixity_check',
+  'virus_check', 'format_identification', 'format_validation', 'migration',
+  'normalization', 'replication', 'deletion', 'modification',
+  'metadata_modification', 'deaccession', 'recovery', 'quarantine',
+  'release', 'access', 'redaction', 'decryption', 'compression', 'decompression'
+]);
+
+export const ImportSourceDeviceSchema = z.object({
+  // USB Device
+  usbVendorId: z.string().optional(),
+  usbProductId: z.string().optional(),
+  usbSerial: z.string().optional(),
+  usbDevicePath: z.string().optional(),
+  usbDeviceName: z.string().optional(),
+  usbBusLocation: z.string().optional(),
+
+  // Card Reader
+  cardReaderVendor: z.string().optional(),
+  cardReaderModel: z.string().optional(),
+  cardReaderSerial: z.string().optional(),
+  cardReaderPort: z.string().optional(),
+
+  // Physical Media
+  mediaType: MediaTypeSchema.optional(),
+  mediaSerial: z.string().optional(),
+  mediaManufacturer: z.string().optional(),
+  mediaCapacity: z.number().int().optional(),
+  mediaFirmware: z.string().optional(),
+
+  // Tethered Device
+  cameraBodySerial: z.string().optional(),
+  cameraInternalName: z.string().optional(),
+  phoneDeviceId: z.string().optional(),
+  tetheredConnection: z.enum(['usb', 'wifi', 'bluetooth', 'thunderbolt']).optional()
+});
+
+export const CustodyEventSchema = z.object({
+  eventId: z.string(),                           // ULID
+  eventTimestamp: z.string().datetime(),
+  eventAction: CustodyEventActionSchema,
+  eventOutcome: z.enum(['success', 'failure', 'partial']),
+  eventLocation: z.string().optional(),
+  eventHost: z.string().optional(),
+  eventUser: z.string().optional(),
+  eventTool: z.string().optional(),
+  eventHash: Blake3FullHashSchema.optional(),
+  eventHashAlgorithm: z.string().optional(),
+  eventNotes: z.string().optional(),
+  eventDetails: z.string().optional()            // JSON blob
+});
+
+export const XmpSidecarSchema = z.object({
+  // Sidecar Self-Integrity
+  schemaVersion: z.number().int().min(1),
+  sidecarHash: Blake3FullHashSchema,
+  sidecarCreated: z.string().datetime(),
+  sidecarUpdated: z.string().datetime(),
+
+  // Core Identity
+  contentHash: Blake3FullHashSchema,
+  hashAlgorithm: z.literal('blake3'),
+  fileSize: z.number().int().nonnegative(),
+  verified: z.boolean(),
+
+  // File Classification
+  fileCategory: FileCategorySchema,
+  fileSubcategory: z.string().optional(),
+  detectedMimeType: z.string(),
+  declaredExtension: z.string(),
+  extensionMismatch: z.boolean().optional(),
+
+  // Source Provenance
+  sourcePath: z.string(),
+  sourceFilename: z.string(),
+  sourceHost: z.string(),
+  sourceVolume: z.string().optional(),
+  sourceVolumeSerial: z.string().optional(),
+  sourceType: SourceTypeSchema,
+
+  // Import Source Device
+  sourceDevice: ImportSourceDeviceSchema.optional(),
+
+  // Timestamps
+  originalMtime: z.string().datetime(),
+  originalCtime: z.string().datetime().optional(),
+  originalBtime: z.string().datetime().optional(),
+
+  // Import Context
+  importTimestamp: z.string().datetime(),
+  sessionId: Blake3IdSchema,
+  toolVersion: z.string(),
+  importUser: z.string(),
+  importHost: z.string(),
+  importPlatform: z.enum(['darwin', 'linux', 'win32']),
+
+  // Batch Context
+  batchId: z.string().optional(),
+  batchName: z.string().optional(),
+
+  // Related Files
+  relatedFiles: z.array(z.string()).optional(),
+  relationType: z.string().optional(),
+  isLivePhoto: z.boolean().optional(),
+  livePhotoRole: z.enum(['image', 'video']).optional(),
+
+  // Chain of Custody
+  custodyChain: z.array(CustodyEventSchema),
+  firstSeen: z.string().datetime(),
+  eventCount: z.number().int().nonnegative()
+});
+
+// ============================================
 // TYPE EXPORTS
 // ============================================
 
@@ -374,6 +554,13 @@ export type VerifyResult = z.infer<typeof VerifyResultSchema>;
 export type AuditResult = z.infer<typeof AuditResultSchema>;
 export type CopyResult = z.infer<typeof CopyResultSchema>;
 export type ImportSession = z.infer<typeof ImportSessionSchema>;
+export type SourceType = z.infer<typeof SourceTypeSchema>;
+export type FileCategory = z.infer<typeof FileCategorySchema>;
+export type MediaType = z.infer<typeof MediaTypeSchema>;
+export type CustodyEventAction = z.infer<typeof CustodyEventActionSchema>;
+export type ImportSourceDevice = z.infer<typeof ImportSourceDeviceSchema>;
+export type CustodyEvent = z.infer<typeof CustodyEventSchema>;
+export type XmpSidecar = z.infer<typeof XmpSidecarSchema>;
 ```
 
 ---
@@ -644,16 +831,16 @@ Output:
 
 ### `wnb import`
 
-Full import pipeline with deduplication.
+Full import pipeline with XMP sidecar generation.
 
 ```
 wnb import <source> <destination> [options]
 
 Arguments:
-  source                Source directory
+  source                Source directory (memory card, folder, etc.)
   destination           Destination directory
 
-Options:
+Core Options:
   --dry-run             Show what would happen
   --resume              Resume from last checkpoint
   --dedup               Skip files that already exist by hash
@@ -662,19 +849,272 @@ Options:
   --manifest            Generate manifest after import
   -q, --quiet           Minimal output
 
+File Naming:
+  -P, --preserve-name   Keep original filenames (default: rename to blake16)
+
+XMP Sidecar Options:
+  -S, --skip-sidecar    Skip XMP sidecar generation (not recommended)
+  -a, --archive         Archive mode: preserve full sidecar history
+  -b, --batch-name      Name for this import batch (e.g., "Wedding 2024")
+  -t, --source-type     Override auto-detected source type
+  --quarantine          Mark all files for review before release
+
+Source Types (auto-detected or -t override):
+  memory_card, camera_direct, phone_direct, local_disk, network_share,
+  cloud_sync, cloud_download, web_download, email_attachment,
+  messaging_app, airdrop, bluetooth, optical_disc, ftp_sftp
+
 Pipeline Stages:
   1. SCAN       [0-5%]    Enumerate source files
-  2. HASH       [5-40%]   Compute hashes (skip if network source)
-  3. DEDUP      [40-45%]  Check destination for duplicates
-  4. COPY       [45-80%]  Network-safe copy with inline hash
-  5. VALIDATE   [80-95%]  Re-verify copied files
-  6. MANIFEST   [95-100%] Generate manifest (optional)
+  2. DEVICE     [5-8%]    Detect source device (USB, card reader, media serial)
+  3. HASH       [8-40%]   Compute BLAKE3 hashes
+  4. DEDUP      [40-45%]  Check destination for duplicates
+  5. COPY       [45-75%]  Network-safe copy with inline hash
+  6. RENAME     [75-80%]  Rename to blake16 (unless -P)
+  7. VALIDATE   [80-90%]  Re-verify copied files
+  8. SIDECAR    [90-98%]  Generate XMP sidecars (unless -S)
+  9. MANIFEST   [98-100%] Generate manifest (optional)
+
+Default File Renaming:
+  Original:  IMG_4523.CR3
+  Renamed:   a7f3b2c1d4e5f678.CR3  (16-char BLAKE3 hash)
+  Sidecar:   a7f3b2c1d4e5f678.CR3.xmp
+
+XMP Sidecar Contents:
+  - Full BLAKE3 hash (64 chars)
+  - Original filename, path, host
+  - Source device info (USB fingerprint, card reader, media serial)
+  - Timestamps (mtime, ctime, btime)
+  - File category (image, video, document, etc.)
+  - Chain of custody (append-only)
+  - Related files (Live Photo pairs, RAW+JPEG)
 
 Examples:
-  wnb import /camera-roll /archive/photos
+  wnb import /Volumes/SDCARD /archive/photos
+  wnb import /Volumes/SDCARD /archive -b "December Wedding"
   wnb import /mnt/sd-card /archive --manifest
   wnb import /network/share /local --resume
   wnb import ./data /backup --dedup
+  wnb import /Volumes/iPhone /archive -t phone_direct
+  wnb import ./downloads /archive -P          # Keep original names
+  wnb import ./data /backup -S                # Skip sidecars (not recommended)
+
+Output:
+  IMPORT IMG_4523.CR3 → a7f3b2c1d4e5f678.CR3 [verified] 28.4MB
+  SIDECAR a7f3b2c1d4e5f678.CR3.xmp created
+```
+
+### `wnb sidecar`
+
+XMP sidecar operations.
+
+```
+wnb sidecar <path> [options]
+
+Arguments:
+  path                  File or directory
+
+Display Options:
+  (no flags)            Show sidecar summary (human-readable)
+  --full                Show full XMP content
+  --history             Show custody chain events
+  --device              Show source device info only
+  -f, --format          Output: text (default), json, xml
+
+Operations:
+  --create              Create sidecar for existing file (if missing)
+  --verify              Verify sidecar integrity (hash check)
+  --update              Update sidecar (add custody event)
+  --embed               Embed XMP into file (if format supports)
+  --extract             Extract embedded XMP to sidecar
+
+Batch Operations:
+  -r, --recursive       Process directories recursively
+  --audit               Audit all sidecars (find missing, verify integrity)
+  --orphans             Find sidecars without matching files
+  --missing             Find files without sidecars
+
+Custody Events (with --update):
+  --event               Event type: fixity_check, access, modification, etc.
+  --note                Add note to custody event
+
+Examples:
+  wnb sidecar photo.jpg                       # Show sidecar summary
+  wnb sidecar photo.jpg --full                # Full XMP content
+  wnb sidecar photo.jpg --history             # Custody chain
+  wnb sidecar photo.jpg --device              # Source device info
+  wnb sidecar photo.jpg --create              # Create if missing
+  wnb sidecar photo.jpg --verify              # Check integrity
+  wnb sidecar ./photos -r --audit             # Audit all sidecars
+  wnb sidecar ./photos -r --missing           # Find files without sidecars
+  wnb sidecar photo.jpg --update --event fixity_check
+  wnb sidecar photo.jpg -f json               # JSON output
+
+Output (default):
+  photo.jpg.xmp
+  ├── Hash:     af1349b9f5f9a1a6a0404dea36dcc9499bcb25c9...
+  ├── Original: IMG_4523.CR3
+  ├── Source:   /Volumes/SDCARD_01/DCIM/100CANON/
+  ├── Device:   SanDisk SD card via Apple Card Reader
+  ├── Category: image/raw
+  ├── Imported: 2025-12-22T09:15:43Z
+  └── Events:   3 (creation → hash → ingestion)
+```
+
+### `wnb device`
+
+Detect import source device information.
+
+```
+wnb device <path> [options]
+
+Arguments:
+  path                  Volume path or mount point
+
+Options:
+  -f, --format          Output: text (default), json
+  -v, --verbose         Show all detected fields
+
+Detected Information:
+  USB Device:
+  ├── Vendor ID         e.g., 0x05ac (Apple)
+  ├── Product ID        e.g., 0x8406
+  ├── Serial            USB device serial number
+  ├── Device Path       e.g., /dev/disk4
+  └── Bus Location      USB bus/port
+
+  Card Reader:
+  ├── Vendor            e.g., Apple, SanDisk
+  ├── Model             e.g., Internal Memory Card Reader
+  ├── Serial            Card reader serial
+  └── Port/Slot         Which slot on multi-slot reader
+
+  Physical Media:
+  ├── Type              sd, cf, cfexpress, ssd, hdd, nvme
+  ├── Serial            Hardware serial (from CID for SD cards)
+  ├── Manufacturer      e.g., SanDisk, Samsung
+  ├── Capacity          In bytes
+  └── Firmware          If available
+
+  Tethered Device:
+  ├── Camera Serial     Camera body serial (via PTP/gphoto2)
+  ├── Phone Device ID   Mobile device identifier
+  └── Connection        usb, wifi, bluetooth, thunderbolt
+
+Examples:
+  wnb device /Volumes/SDCARD
+  wnb device /Volumes/SDCARD -f json
+  wnb device /Volumes/SDCARD -v
+
+Output (text):
+  Source Device: /Volumes/SDCARD_01
+  ├── Type:         memory_card (SD)
+  ├── USB Vendor:   0x05ac (Apple Inc.)
+  ├── USB Product:  0x8406 (Internal Memory Card Reader)
+  ├── USB Serial:   000000000820
+  ├── Media Serial: 0x2b3d9127
+  ├── Media Make:   SanDisk
+  ├── Capacity:     128 GB
+  └── Device Path:  /dev/disk4
+
+Output (json):
+  {
+    "sourceType": "memory_card",
+    "mediaType": "sd",
+    "usb": {
+      "vendorId": "0x05ac",
+      "productId": "0x8406",
+      "serial": "000000000820",
+      "devicePath": "/dev/disk4",
+      "deviceName": "Internal Memory Card Reader"
+    },
+    "media": {
+      "serial": "0x2b3d9127",
+      "manufacturer": "SanDisk",
+      "capacity": 128849018880
+    }
+  }
+```
+
+### `wnb meta`
+
+Extract deep metadata from files using specialized tools.
+
+```
+wnb meta <path> [options]
+
+Arguments:
+  path                  File or directory
+
+Options:
+  -f, --format          Output: text (default), json, yaml
+  --raw                 Raw output from all tools (verbose)
+  --tools               Show which extraction tools were used
+  --category            Force category: photo, video, audio, document, ebook
+  -r, --recursive       Process directories recursively
+  --summary             Summary statistics for directory
+  --missing             Report files with no extractable metadata
+
+Tool Stack (by category):
+  Photo:     ExifTool → exiv2 → libraw → GDAL → ImageMagick
+  Video:     MediaInfo → ffprobe → ExifTool → MKVToolNix
+  Audio:     ExifTool → MediaInfo → mutagen → ffprobe → metaflac
+  Document:  ExifTool → Poppler → Apache Tika
+  Ebook:     ebook-meta (Calibre)
+  Verify:    file + libmagic → Siegfried
+
+Examples:
+  wnb meta photo.jpg                       # Extract photo metadata
+  wnb meta video.mp4                       # Extract video metadata
+  wnb meta photo.jpg -f json               # JSON output
+  wnb meta photo.jpg --raw                 # Raw tool output
+  wnb meta photo.jpg --tools               # Show tools used
+  wnb meta ./photos -r --summary           # Directory summary
+  wnb meta document.pdf --category document  # Force category
+
+Output (text - photo):
+  photo.jpg
+  ├── Category:     image/raw
+  ├── Dimensions:   6000 x 4000
+  ├── Camera:       Canon EOS R5
+  ├── Lens:         RF 24-70mm F2.8 L IS USM
+  ├── Settings:     f/4.0  1/250s  ISO 400  50mm
+  ├── Date:         2025-12-20T14:32:17-08:00
+  ├── GPS:          37.7749, -122.4194
+  ├── Color:        sRGB, 14-bit
+  └── Tools:        exiftool, exiv2
+
+Output (text - video):
+  video.mp4
+  ├── Category:     video/mp4
+  ├── Container:    MP4 (H.264 + AAC)
+  ├── Resolution:   3840x2160 @ 59.94fps (progressive)
+  ├── Duration:     00:02:34.56
+  ├── Bitrate:      150 Mbps (video), 320 kbps (audio)
+  ├── Audio:        AAC, 48kHz, stereo
+  ├── Color:        Rec.709, SDR
+  ├── Date:         2025-12-20T14:30:00Z
+  └── Tools:        mediainfo, ffprobe, exiftool
+
+Output (json):
+  {
+    "category": "image",
+    "mimeType": "image/x-canon-cr3",
+    "tools": ["exiftool", "exiv2"],
+    "photo": {
+      "camera": "Canon EOS R5",
+      "lens": "RF 24-70mm F2.8 L IS USM",
+      "aperture": "f/4.0",
+      "shutterSpeed": "1/250",
+      "iso": 400,
+      "focalLength": "50mm",
+      "captureDate": "2025-12-20T14:32:17-08:00",
+      "gps": { "lat": 37.7749, "lon": -122.4194 },
+      "dimensions": { "width": 6000, "height": 4000 },
+      "colorSpace": "sRGB",
+      "bitDepth": 14
+    }
+  }
 ```
 
 ### `wnb dedup`
@@ -968,6 +1408,12 @@ const RETRY_CONFIG = {
 | 11 | Audit failed: missing files |
 | 12 | Audit failed: extra files (--strict) |
 | 13 | Audit failed: duplicates |
+| 20 | Sidecar: file not found |
+| 21 | Sidecar: integrity check failed |
+| 22 | Sidecar: parse error |
+| 23 | Sidecar: missing (--audit mode) |
+| 30 | Device: detection failed |
+| 31 | Device: not a mounted volume |
 
 ---
 
@@ -1035,26 +1481,68 @@ npm run test:integration     # Integration tests (needs fixtures)
 
 ### Phase 2: Network Operations
 - [ ] Network-safe copy with inline hash
-- [ ] Import pipeline
+- [ ] Import pipeline (basic)
 - [ ] Session persistence/resume
 - [ ] Audit command with verbosity
 
-### Phase 3: Advanced Features
+### Phase 3: XMP Sidecar & Device Detection ✅
+- [x] XMP sidecar writer (XML generation)
+- [x] XMP sidecar reader (parsing & validation)
+- [x] `wnb sidecar` command
+- [x] `wnb device` command
+- [x] `wnb meta` command
+- [x] Source device detection (macOS)
+- [x] Source device detection (Linux)
+- [x] Source device detection (Windows)
+- [x] USB fingerprinting
+- [x] Card reader detection
+- [x] SD card serial extraction
+- [ ] Camera body serial (gphoto2/PTP) - Future
+- [x] Related file detection (Live Photo, RAW+JPEG)
+
+### Phase 3b: Metadata Extraction Stack ✅
+- [x] ExifTool wrapper (via exiftool-vendored)
+- [x] ffprobe wrapper
+- [x] MediaInfo wrapper
+- [ ] exiv2 wrapper - Future
+- [ ] libraw wrapper - Future
+- [ ] Poppler wrapper - Future
+- [ ] Apache Tika wrapper - Future
+- [ ] mutagen wrapper - Future
+- [ ] Siegfried integration - Future
+- [x] Category-based tool routing
+- [x] Metadata normalization to XMP
+
+### Phase 4: Import Pipeline (Full) ✅
+- [x] BLAKE3-16 file renaming (--rename flag)
+- [x] Preserve original name (default, use --rename to hash-name)
+- [x] `--sidecar` flag (generate XMP sidecars)
+- [x] `--batch` flag (batch naming)
+- [x] `--operator` flag
+- [x] `--detect-device` flag
+- [x] `--extract-meta` flag
+- [x] Source type auto-detection
+- [ ] XMP embedding (JPEG, MP4, etc.) - Future
+- [ ] Existing sidecar ingestion - Future
+
+### Phase 5: Advanced Features
 - [ ] `.wnbignore` support
 - [ ] Fast mode (sampling)
 - [ ] HDD sequential mode
 - [ ] Dedup command
 - [ ] Rename with embedded hash
 - [ ] All output formats (csv, bsd, sfv)
+- [ ] File category detection (magic bytes)
+- [ ] Quarantine mode
 
-### Phase 4: Polish
+### Phase 6: Polish
 - [ ] Global config file
 - [ ] Diagnose command
 - [ ] Better progress UI
 - [ ] npm/homebrew distribution
 - [ ] MCP server for Claude Code
 
-### Phase 5: GUI (Deferred)
+### Phase 7: GUI (Deferred)
 - See `design/gui-dashboard-spec.md`
 - Braun Design Language
 - CLI-parity
@@ -1065,5 +1553,8 @@ npm run test:integration     # Integration tests (needs fixtures)
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.5.0 | 2025-12-22 | Full test suite (96 tests), XMP hash validation fix, case-insensitive file matching |
+| 0.4.0 | 2025-12-22 | Added `wnb meta`, metadata extraction stack (ExifTool, MediaInfo, ffprobe, etc.) |
+| 0.3.0 | 2025-12-22 | Added XMP sidecar, `wnb sidecar`, `wnb device`, source device detection |
 | 0.2.0 | 2024-12-21 | Added multi-algorithm, UUID/ULID, best practices audit |
 | 0.1.0 | 2024-12-21 | Initial specification |

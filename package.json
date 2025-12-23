@@ -32,6 +32,8 @@
   "dependencies": {
     "blake3": "^2.1.7",
     "commander": "^12.1.0",
+    "exiftool-vendored": "^28.3.0",
+    "file-type": "^19.6.0",
     "ignore": "^6.0.2",
     "ora": "^8.1.1",
     "p-queue": "^8.0.1",

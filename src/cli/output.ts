@@ -146,6 +146,16 @@ export function formatError(message: string, format: OutputFormat = 'text'): str
 }
 
 /**
+ * Format success message
+ */
+export function formatSuccess(message: string, format: OutputFormat = 'text'): string {
+  if (format === 'json') {
+    return JSON.stringify({ success: message });
+  }
+  return `✓ ${message}`;
+}
+
+/**
  * Format progress for display
  */
 export function formatProgress(

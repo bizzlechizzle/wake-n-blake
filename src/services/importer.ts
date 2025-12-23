@@ -1,26 +1,65 @@
 /**
  * Import pipeline service
- * Full pipeline: scan → hash → dedup → copy → validate → manifest
+ * Full pipeline: scan → hash → dedup → copy → validate → sidecar → manifest
  */
 
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import * as os from 'node:os';
+import { ulid } from 'ulid';
 import { scanDirectory } from './scanner.js';
-import { hashFile } from '../core/hasher.js';
+import { hashFile, hashBlake3 } from '../core/hasher.js';
 import { copyWithHash } from '../core/copier.js';
 import { generateBlake3Id } from '../core/id-generator.js';
 import type { Manifest, ManifestEntry } from '../schemas/index.js';
+import { detectFileType, isSidecarFile, isSkippedFile } from './file-type/detector.js';
+import { writeSidecar } from './xmp/writer.js';
+import { detectSourceDevice, getSourceType, getDeviceChain } from './device/index.js';
+import { extractMetadata, cleanup as cleanupMetadata } from './metadata/index.js';
+import { findRelatedFiles, isPrimaryFile, shouldHideFile } from './related-files/index.js';
+import type { XmpSidecarData, CustodyEvent, ImportSourceDevice, SourceType, FileCategory } from './xmp/schema.js';
+import { SCHEMA_VERSION } from './xmp/schema.js';
+
+/**
+ * Map file category string to FileCategory type
+ */
+function mapToFileCategory(category?: string): FileCategory {
+  switch (category) {
+    case 'photo':
+    case 'image':
+      return 'image';
+    case 'video':
+      return 'video';
+    case 'audio':
+      return 'audio';
+    case 'document':
+      return 'document';
+    case 'archive':
+      return 'archive';
+    case 'sidecar':
+      return 'sidecar';
+    default:
+      return 'other';
+  }
+}
 
 export type ImportStatus =
   | 'pending'
   | 'scanning'
+  | 'detecting-device'
+  | 'detecting-related'
   | 'hashing'
   | 'copying'
+  | 'renaming'
   | 'validating'
+  | 'extracting-metadata'
+  | 'generating-sidecars'
   | 'generating-manifest'
   | 'completed'
   | 'paused'
   | 'failed';
+
+const VERSION = '0.1.0';
 
 export interface ImportSession {
   id: string;
@@ -30,6 +69,8 @@ export interface ImportSession {
   totalFiles: number;
   processedFiles: number;
   duplicateFiles: number;
+  renamedFiles: number;
+  sidecarFiles: number;
   errorFiles: number;
   totalBytes: number;
   processedBytes: number;
@@ -37,6 +78,13 @@ export interface ImportSession {
   completedAt?: string;
   error?: string;
   files: ImportFileState[];
+  // New fields
+  batchId?: string;
+  batchName?: string;
+  sourceDevice?: ImportSourceDevice;
+  sourceType?: SourceType;
+  sourceVolume?: string;
+  sourceVolumeSerial?: string;
 }
 
 export interface ImportFileState {
@@ -44,9 +92,19 @@ export interface ImportFileState {
   relativePath: string;
   size: number;
   hash?: string;
+  hashShort?: string;  // 16-char truncated BLAKE3
   destPath?: string;
   status: 'pending' | 'hashed' | 'copied' | 'validated' | 'skipped' | 'error';
   error?: string;
+  // New fields for XMP pipeline
+  category?: string;  // photo, video, audio, document, etc.
+  sidecarPath?: string;
+  renamed?: boolean;
+  originalName?: string;
+  finalName?: string;
+  relatedFiles?: string[];  // Live Photo pairs, RAW+JPEG, etc.
+  isPrimary?: boolean;  // Primary file in related group
+  metadata?: Record<string, unknown>;
 }
 
 export interface ImportOptions {
@@ -58,6 +116,13 @@ export interface ImportOptions {
   excludePatterns?: string[];
   onProgress?: (session: ImportSession) => void;
   onFile?: (file: ImportFileState, action: string) => void;
+  // New XMP pipeline options
+  sidecar?: boolean;  // Generate XMP sidecars
+  detectDevice?: boolean;  // Detect source device for chain of custody
+  extractMeta?: boolean;  // Extract metadata from files
+  rename?: boolean;  // Rename files to BLAKE3-16 format
+  batch?: string;  // Batch name for this import
+  operator?: string;  // Operator name for custody events
 }
 
 const CHECKPOINT_FILE = '.wnb-import-session.json';
@@ -78,7 +143,14 @@ export async function runImport(
     verify = true,
     excludePatterns,
     onProgress,
-    onFile
+    onFile,
+    // New XMP pipeline options
+    sidecar = false,
+    detectDevice = false,
+    extractMeta = false,
+    rename = false,
+    batch,
+    operator
   } = options;
 
   const resolvedSource = path.resolve(source);
@@ -94,10 +166,10 @@ export async function runImport(
       session = JSON.parse(checkpoint);
       session.status = 'scanning'; // Resume from where we left off
     } catch {
-      session = createNewSession(resolvedSource, resolvedDest);
+      session = createNewSession(resolvedSource, resolvedDest, batch);
     }
   } else {
-    session = createNewSession(resolvedSource, resolvedDest);
+    session = createNewSession(resolvedSource, resolvedDest, batch);
   }
 
   try {
@@ -138,6 +210,55 @@ export async function runImport(
       session.totalFiles = session.files.length;
     }
 
+    // Stage 1b: Detect source device (for chain of custody)
+    if (detectDevice && !session.sourceDevice) {
+      session.status = 'detecting-device';
+      onProgress?.(session);
+
+      try {
+        const deviceResult = await detectSourceDevice(resolvedSource);
+        if (deviceResult.device) {
+          session.sourceDevice = deviceResult.device;
+          session.sourceType = getSourceType(deviceResult.chain);
+          session.sourceVolume = deviceResult.chain?.volume.mountPoint;
+          session.sourceVolumeSerial = deviceResult.chain?.volume.volumeUUID;
+        }
+      } catch {
+        // Device detection is optional, continue without it
+      }
+    }
+
+    // Stage 1c: Detect file categories and related files
+    session.status = 'detecting-related';
+    onProgress?.(session);
+
+    for (const file of session.files) {
+      if (file.status === 'error') continue;
+
+      try {
+        // Detect file type/category
+        const fileType = await detectFileType(file.path);
+        file.category = fileType.category;
+
+        // Skip sidecar files and hidden files
+        if (isSidecarFile(file.path) || isSkippedFile(file.path)) {
+          file.status = 'skipped';
+          continue;
+        }
+
+        // Find related files (Live Photo pairs, RAW+JPEG, etc.)
+        const allPaths = session.files.map(f => f.path);
+        const relatedGroups = await findRelatedFiles(allPaths);
+        const myGroup = relatedGroups.find(g => g.allFiles.includes(file.path));
+        if (myGroup && myGroup.allFiles.length > 1) {
+          file.relatedFiles = myGroup.allFiles.filter(p => p !== file.path);
+          file.isPrimary = isPrimaryFile(file.path, relatedGroups);
+        }
+      } catch {
+        // Continue without related file detection
+      }
+    }
+
     // Stage 2: Hash source files
     session.status = 'hashing';
     onProgress?.(session);
@@ -168,6 +289,7 @@ export async function runImport(
       try {
         const result = await hashFile(file.path, 'blake3');
         file.hash = result.hash;
+        file.hashShort = result.hash.slice(0, 16);  // 16-char truncated
         file.status = 'hashed';
 
         // Check for duplicate
@@ -263,7 +385,181 @@ export async function runImport(
       }
     }
 
-    // Stage 5: Generate manifest
+    // Stage 5: Rename files to BLAKE3-16 format
+    if (rename && !dryRun) {
+      session.status = 'renaming';
+      onProgress?.(session);
+
+      for (const file of session.files) {
+        if ((file.status !== 'validated' && file.status !== 'copied') || !file.destPath || !file.hashShort) continue;
+
+        try {
+          const dir = path.dirname(file.destPath);
+          const ext = path.extname(file.destPath);
+          const originalName = path.basename(file.destPath);
+          const newName = `${file.hashShort}${ext}`;
+          const newPath = path.join(dir, newName);
+
+          // Only rename if name is different
+          if (originalName !== newName) {
+            await fs.rename(file.destPath, newPath);
+            file.originalName = originalName;
+            file.finalName = newName;
+            file.destPath = newPath;
+            file.renamed = true;
+            file.relativePath = path.relative(resolvedDest, newPath);
+            session.renamedFiles++;
+            onFile?.(file, 'renamed');
+          }
+        } catch (err: any) {
+          // Renaming is non-fatal, just log and continue
+          onFile?.(file, 'rename-failed');
+        }
+      }
+    }
+
+    // Stage 6: Extract metadata
+    if (extractMeta && !dryRun) {
+      session.status = 'extracting-metadata';
+      onProgress?.(session);
+
+      for (const file of session.files) {
+        if ((file.status !== 'validated' && file.status !== 'copied') || !file.destPath) continue;
+
+        try {
+          const meta = await extractMetadata(file.destPath);
+          file.metadata = meta as unknown as Record<string, unknown>;
+          onFile?.(file, 'metadata-extracted');
+        } catch {
+          // Metadata extraction is optional, continue without it
+        }
+      }
+    }
+
+    // Stage 7: Generate XMP sidecars
+    if (sidecar && !dryRun) {
+      session.status = 'generating-sidecars';
+      onProgress?.(session);
+
+      const now = new Date().toISOString();
+      let batchSequence = 0;
+
+      for (const file of session.files) {
+        if ((file.status !== 'validated' && file.status !== 'copied') || !file.destPath || !file.hash) continue;
+
+        batchSequence++;
+
+        try {
+          // Get file stats for timestamps
+          const sourceStats = await fs.stat(file.path).catch(() => null);
+          const mtime = sourceStats?.mtime?.toISOString() || now;
+
+          // Map file category to schema FileCategory
+          const fileCategory = mapToFileCategory(file.category);
+
+          // Build the custody event
+          const custodyEvent: CustodyEvent = {
+            eventId: generateBlake3Id(),
+            eventTimestamp: session.startedAt,
+            eventAction: 'ingestion',
+            eventOutcome: 'success',
+            eventLocation: file.destPath,
+            eventHost: os.hostname(),
+            eventUser: operator || os.userInfo().username,
+            eventTool: `wake-n-blake v${VERSION}`,
+            eventHash: file.hash,
+            eventHashAlgorithm: 'blake3',
+            eventNotes: batch ? `Batch: ${batch}` : undefined
+          };
+
+          // Build XMP sidecar data with all required fields
+          const sidecarData: XmpSidecarData = {
+            // Sidecar self-integrity
+            schemaVersion: SCHEMA_VERSION,
+            sidecarCreated: now,
+            sidecarUpdated: now,
+
+            // Core identity
+            contentHash: file.hash,
+            hashAlgorithm: 'blake3',
+            fileSize: file.size,
+            verified: file.status === 'validated',
+
+            // File classification
+            fileCategory,
+            detectedMimeType: file.category || 'application/octet-stream',
+            declaredExtension: path.extname(file.path),
+
+            // Source provenance
+            sourcePath: file.path,
+            sourceFilename: path.basename(file.path),
+            sourceHost: os.hostname(),
+            sourceVolume: session.sourceVolume,
+            sourceVolumeSerial: session.sourceVolumeSerial,
+            sourceType: session.sourceType || 'local_disk',
+
+            // Import source device
+            sourceDevice: session.sourceDevice,
+
+            // Timestamps
+            originalMtime: mtime,
+
+            // Import context
+            importTimestamp: session.startedAt,
+            sessionId: session.id,
+            toolVersion: VERSION,
+            importUser: operator || os.userInfo().username,
+            importHost: os.hostname(),
+            importPlatform: process.platform as 'darwin' | 'linux' | 'win32',
+            importMethod: 'copy',
+
+            // Batch context
+            batchId: session.batchId,
+            batchName: session.batchName,
+            batchFileCount: session.totalFiles,
+            batchSequence,
+
+            // File renaming
+            wasRenamed: file.renamed,
+            destFilename: file.renamed ? file.finalName : undefined,
+            renameReason: file.renamed ? 'hash_naming' : undefined,
+
+            // Related files
+            relatedFiles: file.relatedFiles,
+            isPrimaryFile: file.isPrimary,
+
+            // Chain of custody
+            custodyChain: [custodyEvent],
+            firstSeen: session.startedAt,
+            eventCount: 1
+          };
+
+          // Add type-specific metadata
+          if (file.metadata) {
+            if (file.category === 'photo' || file.category === 'image') {
+              sidecarData.photo = file.metadata as any;
+            } else if (file.category === 'video') {
+              sidecarData.video = file.metadata as any;
+            } else if (file.category === 'audio') {
+              sidecarData.audio = file.metadata as any;
+            } else if (file.category === 'document') {
+              sidecarData.document = file.metadata as any;
+            }
+          }
+
+          // Write sidecar
+          const sidecarPath = await writeSidecar(file.destPath, sidecarData);
+          file.sidecarPath = sidecarPath;
+          session.sidecarFiles++;
+          onFile?.(file, 'sidecar-generated');
+        } catch (err: any) {
+          // Sidecar generation is non-fatal
+          onFile?.(file, 'sidecar-failed');
+        }
+      }
+    }
+
+    // Stage 8: Generate manifest
     if (manifest && !dryRun) {
       session.status = 'generating-manifest';
       onProgress?.(session);
@@ -298,9 +594,14 @@ export async function runImport(
     session.completedAt = new Date().toISOString();
     onProgress?.(session);
 
-    // Clean up checkpoint
+    // Clean up checkpoint and resources
     if (!dryRun) {
       await fs.unlink(checkpointPath).catch(() => {});
+    }
+
+    // Clean up metadata extractor resources
+    if (extractMeta || sidecar) {
+      await cleanupMetadata();
     }
 
     return session;
@@ -316,7 +617,7 @@ export async function runImport(
 /**
  * Create a new import session
  */
-function createNewSession(source: string, destination: string): ImportSession {
+function createNewSession(source: string, destination: string, batch?: string): ImportSession {
   return {
     id: generateBlake3Id(),
     status: 'pending',
@@ -325,11 +626,15 @@ function createNewSession(source: string, destination: string): ImportSession {
     totalFiles: 0,
     processedFiles: 0,
     duplicateFiles: 0,
+    renamedFiles: 0,
+    sidecarFiles: 0,
     errorFiles: 0,
     totalBytes: 0,
     processedBytes: 0,
     startedAt: new Date().toISOString(),
-    files: []
+    files: [],
+    batchId: batch ? generateBlake3Id() : undefined,
+    batchName: batch
   };
 }
 

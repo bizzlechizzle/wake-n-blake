@@ -134,9 +134,87 @@ export const CopyResultSchema = z.object({
 });
 
 export const ImportStatusSchema = z.enum([
-  'scanning', 'hashing', 'copying',
-  'validating', 'completed', 'paused', 'failed'
+  'pending', 'scanning', 'detecting-device', 'detecting-related',
+  'hashing', 'copying', 'renaming', 'validating',
+  'extracting-metadata', 'generating-sidecars', 'generating-manifest',
+  'completed', 'paused', 'failed'
 ]);
+
+// ============================================
+// XMP & DEVICE SCHEMAS
+// ============================================
+
+export const SourceTypeSchema = z.enum([
+  'memory_card', 'camera_direct', 'phone_direct', 'local_disk',
+  'network_share', 'cloud_sync', 'cloud_download', 'web_download',
+  'email_attachment', 'messaging_app', 'airdrop', 'bluetooth',
+  'optical_disc', 'tape', 'ftp_sftp', 'version_control',
+  'backup_restore', 'forensic_recovery', 'unknown'
+]);
+
+export const FileCategorySchema = z.enum([
+  'image', 'video', 'audio', 'document', 'archive',
+  'sidecar', 'ebook', 'executable', 'data', 'other'
+]);
+
+export const MediaTypeSchema = z.enum(['sd', 'cf', 'cfexpress', 'ssd', 'hdd', 'nvme']);
+
+export const CustodyEventActionSchema = z.enum([
+  'creation', 'ingestion', 'message_digest_calculation', 'fixity_check',
+  'virus_check', 'format_identification', 'format_validation',
+  'migration', 'normalization', 'replication', 'deletion', 'modification',
+  'metadata_modification', 'deaccession', 'recovery', 'quarantine',
+  'release', 'access', 'redaction', 'decryption', 'compression', 'decompression'
+]);
+
+export const USBDeviceInfoSchema = z.object({
+  vendorId: z.string().optional(),
+  productId: z.string().optional(),
+  serial: z.string().optional(),
+  devicePath: z.string().optional(),
+  deviceName: z.string().optional(),
+  busLocation: z.string().optional()
+});
+
+export const CardReaderInfoSchema = z.object({
+  vendor: z.string().optional(),
+  model: z.string().optional(),
+  serial: z.string().optional(),
+  port: z.string().optional()
+});
+
+export const MediaInfoSchema = z.object({
+  type: MediaTypeSchema.optional(),
+  serial: z.string().optional(),
+  manufacturer: z.string().optional(),
+  capacity: z.number().optional(),
+  firmware: z.string().optional()
+});
+
+export const ImportSourceDeviceSchema = z.object({
+  usb: USBDeviceInfoSchema.optional(),
+  cardReader: CardReaderInfoSchema.optional(),
+  media: MediaInfoSchema.optional(),
+  cameraBodySerial: z.string().optional(),
+  cameraInternalName: z.string().optional(),
+  phoneDeviceId: z.string().optional(),
+  tetheredConnection: z.enum(['usb', 'wifi', 'bluetooth', 'thunderbolt']).optional()
+});
+
+export const CustodyEventSchema = z.object({
+  eventId: z.string(),
+  eventTimestamp: z.string(),
+  eventAction: CustodyEventActionSchema,
+  eventOutcome: z.enum(['success', 'failure', 'partial']),
+  eventLocation: z.string().optional(),
+  eventHost: z.string().optional(),
+  eventUser: z.string().optional(),
+  eventTool: z.string().optional(),
+  eventHash: z.string().optional(),
+  eventHashAlgorithm: z.string().optional(),
+  eventNotes: z.string().optional(),
+  eventDetails: z.string().optional()
+});
 
 export const ImportSessionSchema = z.object({
   id: Blake3IdSchema,
@@ -146,13 +224,22 @@ export const ImportSessionSchema = z.object({
   totalFiles: z.number().int().nonnegative(),
   processedFiles: z.number().int().nonnegative(),
   duplicateFiles: z.number().int().nonnegative(),
+  renamedFiles: z.number().int().nonnegative().optional(),
+  sidecarFiles: z.number().int().nonnegative().optional(),
   errorFiles: z.number().int().nonnegative(),
   totalBytes: z.number().int().nonnegative(),
   processedBytes: z.number().int().nonnegative(),
   startedAt: z.string().datetime(),
   completedAt: z.string().datetime().optional(),
   error: z.string().optional(),
-  checkpoint: z.any().optional()
+  checkpoint: z.any().optional(),
+  // XMP-related fields
+  batchId: z.string().optional(),
+  batchName: z.string().optional(),
+  sourceDevice: ImportSourceDeviceSchema.optional(),
+  sourceType: SourceTypeSchema.optional(),
+  sourceVolume: z.string().optional(),
+  sourceVolumeSerial: z.string().optional()
 });
 
 // ============================================
@@ -176,6 +263,15 @@ export type AuditResult = z.infer<typeof AuditResultSchema>;
 export type CopyResult = z.infer<typeof CopyResultSchema>;
 export type ImportStatus = z.infer<typeof ImportStatusSchema>;
 export type ImportSession = z.infer<typeof ImportSessionSchema>;
+export type SourceType = z.infer<typeof SourceTypeSchema>;
+export type FileCategory = z.infer<typeof FileCategorySchema>;
+export type MediaType = z.infer<typeof MediaTypeSchema>;
+export type CustodyEventAction = z.infer<typeof CustodyEventActionSchema>;
+export type USBDeviceInfo = z.infer<typeof USBDeviceInfoSchema>;
+export type CardReaderInfo = z.infer<typeof CardReaderInfoSchema>;
+export type MediaInfoZ = z.infer<typeof MediaInfoSchema>;
+export type ImportSourceDevice = z.infer<typeof ImportSourceDeviceSchema>;
+export type CustodyEvent = z.infer<typeof CustodyEventSchema>;
 
 // ============================================
 // VALIDATION HELPERS

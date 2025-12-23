@@ -17,6 +17,12 @@ export const importCommand = new Command('import')
   .option('--manifest', 'Generate manifest after import')
   .option('--no-verify', 'Skip post-copy verification')
   .option('--exclude <pattern...>', 'Patterns to exclude')
+  .option('--sidecar', 'Generate XMP sidecar files')
+  .option('--detect-device', 'Detect source device for chain of custody')
+  .option('--extract-meta', 'Extract metadata from media files')
+  .option('--rename', 'Rename files to BLAKE3-16 format')
+  .option('--batch <name>', 'Batch name for this import')
+  .option('--operator <name>', 'Operator name for custody events')
   .option('-f, --format <fmt>', 'Output format: text, json', 'text')
   .option('-q, --quiet', 'Minimal output')
   .action(async (source: string, destination: string, options) => {
@@ -46,14 +52,25 @@ export const importCommand = new Command('import')
         dryRun: options.dryRun,
         verify: options.verify,
         excludePatterns: options.exclude,
+        sidecar: options.sidecar,
+        detectDevice: options.detectDevice,
+        extractMeta: options.extractMeta,
+        rename: options.rename,
+        batch: options.batch,
+        operator: options.operator,
         onProgress: (s) => {
           if (!options.quiet && s.status !== lastStatus) {
             lastStatus = s.status;
             const statusLabels: Record<string, string> = {
               scanning: 'Scanning files...',
+              'detecting-device': 'Detecting source device...',
+              'detecting-related': 'Detecting related files...',
               hashing: 'Hashing source files...',
               copying: 'Copying files...',
+              renaming: 'Renaming files to BLAKE3-16...',
               validating: 'Validating copies...',
+              'extracting-metadata': 'Extracting metadata...',
+              'generating-sidecars': 'Generating XMP sidecars...',
               'generating-manifest': 'Generating manifest...',
               completed: 'Import complete!',
               failed: 'Import failed!'
@@ -75,6 +92,12 @@ export const importCommand = new Command('import')
               break;
             case 'skip-duplicate':
               console.log(`Skip (dup): ${file.relativePath}`);
+              break;
+            case 'renamed':
+              console.log(`Renamed: ${file.originalName} → ${file.finalName}`);
+              break;
+            case 'sidecar-generated':
+              // Silent on success
               break;
             case 'validated':
               // Silent on success
@@ -110,6 +133,12 @@ export const importCommand = new Command('import')
         console.log(`Total files:   ${session.totalFiles}`);
         console.log(`Processed:     ${session.processedFiles}`);
         console.log(`Duplicates:    ${session.duplicateFiles}`);
+        if (session.renamedFiles > 0) {
+          console.log(`Renamed:       ${session.renamedFiles}`);
+        }
+        if (session.sidecarFiles > 0) {
+          console.log(`Sidecars:      ${session.sidecarFiles}`);
+        }
         console.log(`Errors:        ${session.errorFiles}`);
         console.log('');
         console.log(`Total size:    ${formatSize(session.totalBytes)}`);
