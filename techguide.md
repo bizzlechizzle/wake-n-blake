@@ -862,6 +862,11 @@ XMP Sidecar Options:
   -t, --source-type     Override auto-detected source type
   --quarantine          Mark all files for review before release
 
+Media Analysis Options:
+  --guessit             Parse video filenames with guessit (TV/movie metadata)
+  --audio-quality       Analyze audio quality (lossless/lossy, sample rate, bit depth)
+  --fingerprint         Generate Chromaprint acoustic fingerprint for audio
+
 Source Types (auto-detected or -t override):
   memory_card, camera_direct, phone_direct, local_disk, network_share,
   cloud_sync, cloud_download, web_download, email_attachment,
@@ -901,6 +906,12 @@ Examples:
   wnb import /Volumes/iPhone /archive -t phone_direct
   wnb import ./downloads /archive -P          # Keep original names
   wnb import ./data /backup -S                # Skip sidecars (not recommended)
+
+  # Audio analysis
+  wnb import /music /archive --sidecar --audio-quality --fingerprint
+
+  # TV/Movie import with guessit
+  wnb import /downloads/shows /media --sidecar --guessit
 
 Output:
   IMPORT IMG_4523.CR3 → a7f3b2c1d4e5f678.CR3 [verified] 28.4MB
@@ -1516,6 +1527,19 @@ npm run test:integration     # Integration tests (needs fixtures)
 - ffprobe: Optional (detects if installed)
 - MediaInfo: Optional (detects if installed)
 
+### Phase 3c: Audio & Video Analysis ✅ (v0.1.5)
+- [x] guessit wrapper (TV/movie filename parsing)
+- [x] Audio quality analyzer (lossless/lossy detection, transcode detection)
+- [x] Chromaprint wrapper (acoustic fingerprinting)
+- [x] `--guessit` flag for import
+- [x] `--audio-quality` flag for import
+- [x] `--fingerprint` flag for import
+
+**Available Analyzers:**
+- guessit: Optional (pip install guessit)
+- Audio Quality: Uses ffprobe (optional)
+- Chromaprint: Optional (brew install chromaprint)
+
 ### Phase 4: Import Pipeline (Full) ✅
 - [x] BLAKE3-16 file renaming (--rename flag)
 - [x] Preserve original name (default, use --rename to hash-name)
@@ -1913,6 +1937,7 @@ Downstream tools should check `wnb:RelationType` and `wnb:IsPrimaryFile` to avoi
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.1.5 | 2025-12-24 | Added guessit, audio-quality, and chromaprint analysis for import pipeline |
 | 0.1.3 | 2025-12-23 | Added `pathBuilder` and `existingHashes` options for external app integration |
 | 0.6.0 | 2025-12-23 | Camera fingerprinting (9,766 cameras), extension learning, USB vendors, storage patterns, XML sidecar parsing, shared registry, XMP schema v3 |
 | 0.5.0 | 2025-12-22 | Full test suite (96 tests), XMP hash validation fix, case-insensitive file matching |
