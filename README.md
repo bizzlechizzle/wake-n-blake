@@ -630,6 +630,8 @@ Wake-n-Blake generates XMP sidecars with comprehensive provenance:
 | `WNB_RETRY_COUNT` | Network retry attempts | 3 |
 | `WNB_FORMAT` | Default output format | text |
 | `WNB_ALGORITHM` | Default algorithm | blake3 |
+| `PROGRESS_SOCKET` | Unix socket path for progress reporting | (none) |
+| `PROGRESS_SESSION_ID` | Session identifier for progress messages | (none) |
 
 ### Config File
 
