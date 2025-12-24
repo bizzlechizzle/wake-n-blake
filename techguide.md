@@ -1830,6 +1830,85 @@ This reduces the entire import pipeline to a single `runImport()` call with ~15 
 
 ---
 
+## XMP Pipeline Integration
+
+wake-n-blake is the **first stage** in the media processing pipeline. It creates XMP sidecars that downstream tools (shoemaker, visual-buffet) will extend.
+
+### Pipeline Order (CRITICAL)
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  wake-n-blake   │ ──► │    shoemaker    │ ──► │  visual-buffet  │
+│   (import)      │     │  (thumbnails)   │     │   (ML tags)     │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+        │                       │                       │
+        ▼                       ▼                       ▼
+    wnb: data             shoemaker: data         vbuffet: data
+    (provenance)          (thumbnails)            (ML tags)
+```
+
+**wake-n-blake MUST run first** because it creates the initial XMP sidecar with:
+- Content hash (BLAKE3)
+- File provenance (source path, device, host)
+- Chain of custody (initial ingestion event)
+- Related file groupings (Live Photos, RAW+JPEG pairs)
+
+### Namespace: `wnb:`
+
+```
+Namespace URI: http://wake-n-blake.dev/xmp/1.0/
+Prefix: wnb
+Current Schema Version: 3
+```
+
+### XMP Sidecar Naming
+
+All tools in the pipeline use the same naming convention:
+```
+{filename}.xmp     # Sidecar for {filename}
+IMG_1234.jpg.xmp   # Example
+```
+
+### For Downstream Tools (shoemaker, visual-buffet)
+
+When modifying XMP sidecars created by wake-n-blake:
+
+1. **Use ExifTool** (not raw file writes) to preserve unknown namespaces
+2. **Add custody event** when modifying:
+   ```xml
+   <wnb:CustodyChain>
+     <rdf:Seq>
+       <rdf:li rdf:parseType="Resource">
+         <wnb:EventID>01HQXYZ...</wnb:EventID>
+         <wnb:EventTimestamp>2025-12-23T10:30:00Z</wnb:EventTimestamp>
+         <wnb:EventAction>metadata_modification</wnb:EventAction>
+         <wnb:EventOutcome>success</wnb:EventOutcome>
+         <wnb:EventTool>shoemaker/0.1.9</wnb:EventTool>
+         <wnb:EventNotes>Added thumbnail metadata</wnb:EventNotes>
+       </rdf:li>
+     </rdf:Seq>
+   </wnb:CustodyChain>
+   ```
+3. **Increment `wnb:EventCount`**
+4. **Update `wnb:SidecarUpdated`** timestamp
+
+### Related Files
+
+wake-n-blake detects and groups related files:
+- Live Photos (image + video pairs)
+- RAW+JPEG pairs
+- Burst sequences
+- HDR brackets
+
+Downstream tools should check `wnb:RelationType` and `wnb:IsPrimaryFile` to avoid duplicate processing.
+
+### Known Issue: Overwrite Behavior
+
+**CURRENT**: `writeSidecar()` completely overwrites the XMP file.
+**TODO**: Implement merge logic to preserve non-wnb namespaces when XMP already exists.
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
