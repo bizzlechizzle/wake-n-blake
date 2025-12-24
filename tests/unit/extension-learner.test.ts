@@ -32,9 +32,9 @@ describe('ExtensionLearner', () => {
       expect(learner.getCategory('.zip')).toBe('archive');
     });
 
-    it('should return document for unknown extensions', () => {
-      expect(learner.getCategory('.xyz')).toBe('document');
-      expect(learner.getCategory('.unknown')).toBe('document');
+    it('should return other for unknown extensions', () => {
+      expect(learner.getCategory('.xyz')).toBe('other');
+      expect(learner.getCategory('.unknown')).toBe('other');
     });
 
     it('should return learned category after learning', () => {
@@ -155,7 +155,7 @@ describe('ExtensionLearner', () => {
       expect(learner.getCategory('.xyz')).toBe('video');
 
       learner.forget('.xyz');
-      expect(learner.getCategory('.xyz')).toBe('document');
+      expect(learner.getCategory('.xyz')).toBe('other');
     });
   });
 

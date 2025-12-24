@@ -42,6 +42,9 @@ export const IMAGE_EXTENSIONS = new Set([
   // Vector (rasterizable)
   '.svg', '.svgz',
 
+  // Apple icons
+  '.icns',     // macOS icon
+
   // Legacy/specialized
   '.tga', '.icb', '.vda', '.vst',  // Targa
   '.pcx',      // PC Paintbrush
@@ -257,6 +260,7 @@ export const SIDECAR_EXTENSIONS = new Set([
   '.smi', '.sami', // SAMI
   '.usf',        // Universal Subtitle Format
   '.ttml', '.dfxp', // Timed Text
+  '.ccx',        // CCExtractor output
 
   // DJI/Drone telemetry
   '.srt',        // DJI uses SRT for GPS/telemetry
@@ -277,6 +281,7 @@ export const SIDECAR_EXTENSIONS = new Set([
   '.sidecar',    // Blackmagic
   '.cdl',        // Color Decision List
   '.cube',       // 3D LUT
+  '.3dlut',      // 3D LUT (alternate extension)
 
   // Nikon
   '.nksc',       // NX Studio
@@ -299,6 +304,11 @@ export const SIDECAR_EXTENSIONS = new Set([
   // Media info
   '.nfo',        // Scene info (text)
   '.diz',        // file_id.diz
+
+  // Shortcut/link files
+  '.url',        // Windows URL shortcut
+  '.webloc',     // macOS URL shortcut
+  '.desktop',    // Linux desktop entry
 ]);
 
 // =============================================================================
@@ -383,6 +393,8 @@ export const GAME_EXTENSIONS = new Set([
 export const ARCHIVE_EXTENSIONS = new Set([
   '.zip',
   '.rar', '.r00', '.r01',  // RAR volumes
+  '.001', '.002', '.003', '.004', '.005',  // Split archive parts
+  '.1', '.2', '.3', '.4', '.5',  // Alternate split naming
   '.7z',
   '.tar',
   '.gz', '.gzip', '.tgz', '.tar.gz',
@@ -412,6 +424,296 @@ export const ARCHIVE_EXTENSIONS = new Set([
   '.deb', '.rpm', // Linux packages
   '.msi', '.msix', // Windows installer
   '.appx', '.appxbundle',
+
+  // Additional archives
+  '.jar',        // Java archive
+  '.war', '.ear', // Java web/enterprise archive
+  '.wacz',       // Web Archive Collection Zipped
+  '.warc',       // Web ARChive
+  '.zxp',        // Adobe extension package
+  '.xpi',        // Firefox extension
+  '.crx',        // Chrome extension
+  '.torrent',    // BitTorrent metainfo
+  '.spk',        // Synology package
+  '.qpkg',       // QNAP package
+]);
+
+// =============================================================================
+// FONT FORMATS
+// =============================================================================
+
+/** Font file formats */
+export const FONT_EXTENSIONS = new Set([
+  '.ttf',        // TrueType
+  '.otf',        // OpenType
+  '.woff', '.woff2', // Web Open Font Format
+  '.eot',        // Embedded OpenType
+  '.ttc',        // TrueType Collection
+  '.dfont',      // Mac Data Fork Font
+  '.pfb', '.pfm', '.pfa', // PostScript Type 1
+  '.fon', '.fnt', // Windows bitmap font
+  '.bdf', '.pcf', // Bitmap Distribution Format
+  '.sfd',        // FontForge source
+]);
+
+// =============================================================================
+// GEOSPATIAL FORMATS
+// =============================================================================
+
+/** Geospatial and mapping file formats */
+export const GEO_EXTENSIONS = new Set([
+  '.gpx',        // GPS Exchange
+  '.kml', '.kmz', // Keyhole Markup Language
+  '.geojson',    // GeoJSON
+  '.shp', '.shx', '.dbf', '.prj', // Shapefile components
+  '.gdb',        // File geodatabase
+  '.osm', '.pbf', // OpenStreetMap
+  '.fit',        // Garmin FIT (also FITS astronomy)
+  '.tcx',        // Training Center XML
+  '.gpkg',       // GeoPackage
+  '.mbtiles',    // MapBox tiles
+  '.tpk',        // ArcGIS tile package
+  '.vtpk',       // Vector tile package
+]);
+
+// =============================================================================
+// OFFICE / DOCUMENT FORMATS
+// =============================================================================
+
+/** Office and document file formats */
+export const OFFICE_EXTENSIONS = new Set([
+  // Microsoft Office
+  '.doc', '.docx', '.docm',
+  '.xls', '.xlsx', '.xlsm', '.xlsb',
+  '.ppt', '.pptx', '.pptm',
+  '.msg',        // Outlook message
+  '.eml',        // Email message
+  '.ost', '.pst', // Outlook data
+
+  // OpenDocument
+  '.odt', '.ods', '.odp', '.odg', '.odf',
+
+  // PDF
+  '.pdf',
+
+  // Rich text
+  '.rtf',
+
+  // Plain text
+  '.txt', '.text',
+  '.log',
+  '.csv', '.tsv',
+
+  // Markup
+  '.md', '.markdown', '.mdown',
+  '.html', '.htm', '.xhtml',
+  '.xml',
+
+  // Config/data
+  '.json', '.jsonl', '.ndjson',
+  '.yaml', '.yml',
+  '.toml',
+  '.ini', '.cfg', '.conf',
+  '.plist',      // Apple property list
+
+  // Apple iWork
+  '.pages', '.numbers', '.keynote',
+
+  // Other
+  '.tex', '.latex',
+  '.org',        // Org-mode
+  '.rst',        // reStructuredText
+  '.asciidoc', '.adoc',
+  '.skill',      // Claude Code skill files
+
+  // Security/certificates
+  '.pem', '.crt', '.cer', '.key', '.p12', '.pfx',
+  '.pub',        // Public key
+  '.asc',        // PGP/GPG
+
+  // Diff/patch
+  '.patch', '.diff',
+]);
+
+// =============================================================================
+// DEVELOPER CONFIG FILES
+// =============================================================================
+
+/** Developer and build configuration files (beyond source code) */
+export const DEV_CONFIG_EXTENSIONS = new Set([
+  // Version control
+  '.gitignore', '.gitattributes', '.gitmodules',
+  '.hgignore',   // Mercurial
+
+  // Editor/IDE
+  '.editorconfig',
+  '.prettierrc', '.prettierignore',
+  '.eslintrc', '.eslintignore',
+
+  // Build/package
+  '.npmrc', '.npmignore', '.yarnrc',
+  '.babelrc',
+  '.browserslistrc',
+
+  // Linting/formatting
+  '.pylintrc', '.flake8', '.yapf', '.isort.cfg',
+  '.rubocop.yml',
+  '.clang-format', '.clang-tidy',
+  '.coveragerc',
+
+  // CI/CD
+  '.travis.yml', '.gitlab-ci.yml',
+  '.cirrus_dockerfile',
+
+  // Environment
+  '.env', '.envrc',
+
+  // Spec files
+  '.spec',       // RPM spec, Python spec
+
+  // Source maps
+  '.map',        // JavaScript source maps
+
+  // Qt
+  '.qm', '.qml', '.qmltypes', '.pri', '.pro',
+]);
+
+// =============================================================================
+// CODE / DEVELOPMENT FORMATS
+// =============================================================================
+
+/** Source code and development file formats */
+export const CODE_EXTENSIONS = new Set([
+  // Web
+  '.js', '.mjs', '.cjs',
+  '.ts', '.tsx', '.jsx',
+  '.css', '.scss', '.sass', '.less', '.styl',
+  '.vue', '.svelte', '.astro',
+  '.html', '.htm',
+
+  // Systems
+  '.c', '.h',
+  '.cpp', '.cc', '.cxx', '.hpp', '.hh', '.hxx',
+  '.rs',         // Rust
+  '.go',
+  '.zig',
+
+  // JVM
+  '.java', '.kt', '.kts', '.scala', '.groovy', '.clj', '.cljs', '.edn',
+
+  // .NET
+  '.cs', '.fs', '.vb',
+
+  // Scripting
+  '.py', '.pyw', '.pyi',
+  '.rb', '.erb',
+  '.php',
+  '.pl', '.pm',  // Perl
+  '.lua',
+  '.sh', '.bash', '.zsh', '.fish',
+  '.bat', '.cmd', '.ps1', '.psm1',
+
+  // Functional
+  '.hs', '.lhs',  // Haskell
+  '.ml', '.mli',  // OCaml
+  '.ex', '.exs',  // Elixir
+  '.erl', '.hrl', // Erlang
+  '.lisp', '.cl', '.el',
+  '.scm', '.ss', '.rkt',  // Scheme/Racket
+
+  // Data/Config
+  '.sql',
+  '.graphql', '.gql',
+  '.proto',      // Protocol Buffers
+
+  // Build/Config
+  '.make', '.mk',
+  '.cmake',
+  '.gradle',
+  '.nix',
+  '.gn', '.gni',  // Google GN build system
+
+  // Mobile
+  '.swift',
+  '.m', '.mm',   // Objective-C
+
+  // Other
+  '.r', '.R',
+  '.jl',         // Julia
+  '.nim',
+  '.d',          // D language
+  '.v',          // V / Verilog
+  '.vhd', '.vhdl',  // VHDL
+
+  // Compiled/bytecode (for reference)
+  '.pyc', '.pyo',
+  '.class',
+  '.o', '.obj',
+  '.dll', '.so', '.dylib',
+  '.exe',
+]);
+
+// =============================================================================
+// SYSTEM / METADATA FILES
+// =============================================================================
+
+/** System and platform-specific metadata files */
+export const SYSTEM_EXTENSIONS = new Set([
+  // macOS
+  '.ds_store',   // Folder metadata (normally hidden)
+  '.localized',  // Localization folder marker
+  '.strings',    // Localized strings
+  '.nib', '.xib', // Interface Builder
+  '.storyboard', '.storyboardc',
+  '.sdef',       // Scripting definition
+  '.sdg',        // macOS scripting data
+  '.helpindex',  // Help index
+
+  // Windows
+  '.lnk',        // Shell link
+  '.library-ms', // Library definition
+
+  // Linux
+  '.list',       // APT sources list
+  '.service',    // systemd service
+  '.socket',     // systemd socket
+  '.timer',      // systemd timer
+
+  // General
+  '.lock',       // Lock files
+  '.pid',        // Process ID files
+]);
+
+// =============================================================================
+// DATA / DATABASE FORMATS
+// =============================================================================
+
+/** Database and data file formats */
+export const DATA_EXTENSIONS = new Set([
+  '.db', '.sqlite', '.sqlite3',
+  '.mdb', '.accdb',      // Access
+  '.dbf',                // dBase
+  '.dat',                // Generic data
+  '.parquet',            // Apache Parquet
+  '.arrow', '.feather',  // Apache Arrow
+  '.avro',               // Apache Avro
+  '.orc',                // Apache ORC
+]);
+
+// =============================================================================
+// FIRMWARE / EMBEDDED
+// =============================================================================
+
+/** Firmware and embedded system files */
+export const FIRMWARE_EXTENSIONS = new Set([
+  '.uf2',        // USB Flashing Format (RP2040, etc.)
+  '.hex', '.ihex', // Intel HEX
+  '.bin',        // Binary firmware (also in game)
+  '.elf',        // ELF executable
+  '.fw',         // Generic firmware
+  '.efi',        // UEFI firmware
+  '.rom',        // ROM image
+  '.img',        // Disk/firmware image
 ]);
 
 // =============================================================================
@@ -426,20 +728,36 @@ export const ALL_MEDIA_EXTENSIONS = new Set([
   ...AUDIO_EXTENSIONS,
 ]);
 
-/** All extensions we explicitly categorize (not "document/other") */
+/** All extensions we explicitly categorize (not "other") */
 export const ALL_KNOWN_EXTENSIONS = new Set([
   ...ALL_MEDIA_EXTENSIONS,
   ...SIDECAR_EXTENSIONS,
   ...EBOOK_EXTENSIONS,
   ...GAME_EXTENSIONS,
   ...ARCHIVE_EXTENSIONS,
+  ...FONT_EXTENSIONS,
+  ...GEO_EXTENSIONS,
+  ...OFFICE_EXTENSIONS,
+  ...DEV_CONFIG_EXTENSIONS,
+  ...CODE_EXTENSIONS,
+  ...SYSTEM_EXTENSIONS,
+  ...DATA_EXTENSIONS,
+  ...FIRMWARE_EXTENSIONS,
 ]);
 
 // =============================================================================
 // TYPE GUARDS AND HELPERS
 // =============================================================================
 
-export type MediaCategory = 'image' | 'raw' | 'video' | 'audio' | 'sidecar' | 'ebook' | 'game' | 'archive' | 'document';
+/**
+ * Media category type - aligned with FileCategorySchema from schemas/index.ts
+ * Note: 'raw' and 'game' are extensions not in the base schema
+ */
+export type MediaCategory =
+  | 'image' | 'raw' | 'video' | 'audio'
+  | 'sidecar' | 'subtitle' | 'ebook' | 'game' | 'archive'
+  | 'font' | 'geospatial' | 'email' | 'model3d' | 'calendar' | 'contact'
+  | 'data' | 'executable' | 'document' | 'other';
 
 /**
  * Get the category for a file extension
@@ -447,16 +765,33 @@ export type MediaCategory = 'image' | 'raw' | 'video' | 'audio' | 'sidecar' | 'e
 export function getMediaCategory(ext: string): MediaCategory {
   const lowerExt = ext.toLowerCase().startsWith('.') ? ext.toLowerCase() : `.${ext.toLowerCase()}`;
 
+  // Media categories (high priority)
   if (RAW_EXTENSIONS.has(lowerExt)) return 'raw';
   if (IMAGE_EXTENSIONS.has(lowerExt)) return 'image';
   if (VIDEO_EXTENSIONS.has(lowerExt)) return 'video';
   if (AUDIO_EXTENSIONS.has(lowerExt)) return 'audio';
+
+  // Metadata & sidecars
   if (SIDECAR_EXTENSIONS.has(lowerExt)) return 'sidecar';
+
+  // Content categories
   if (EBOOK_EXTENSIONS.has(lowerExt)) return 'ebook';
   if (GAME_EXTENSIONS.has(lowerExt)) return 'game';
   if (ARCHIVE_EXTENSIONS.has(lowerExt)) return 'archive';
+  if (FONT_EXTENSIONS.has(lowerExt)) return 'font';
+  if (GEO_EXTENSIONS.has(lowerExt)) return 'geospatial';
+  if (DATA_EXTENSIONS.has(lowerExt)) return 'data';
+  if (FIRMWARE_EXTENSIONS.has(lowerExt)) return 'executable';
 
-  return 'document';  // Everything else
+  // Office/document, code, and dev config → 'document' category
+  if (OFFICE_EXTENSIONS.has(lowerExt)) return 'document';
+  if (DEV_CONFIG_EXTENSIONS.has(lowerExt)) return 'document';
+  if (CODE_EXTENSIONS.has(lowerExt)) return 'document';
+
+  // System/metadata files → 'other' (recognized but not content)
+  if (SYSTEM_EXTENSIONS.has(lowerExt)) return 'other';
+
+  return 'other';  // Unknown extension
 }
 
 /**

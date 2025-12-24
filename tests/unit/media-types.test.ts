@@ -175,10 +175,10 @@ describe('Media Types', () => {
       expect(getMediaCategory('.7z')).toBe('archive');
     });
 
-    it('should return document for unknown extensions', () => {
-      expect(getMediaCategory('.xyz')).toBe('document');
-      expect(getMediaCategory('.unknown')).toBe('document');
-      expect(getMediaCategory('.foo')).toBe('document');
+    it('should return other for unknown extensions', () => {
+      expect(getMediaCategory('.xyz')).toBe('other');
+      expect(getMediaCategory('.unknown')).toBe('other');
+      expect(getMediaCategory('.foo')).toBe('other');
     });
 
     it('should handle extensions with or without dot', () => {
