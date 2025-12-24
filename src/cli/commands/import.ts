@@ -26,6 +26,16 @@ export const importCommand = new Command('import')
   .option('--guessit', 'Parse filenames with guessit for TV/movie metadata')
   .option('--audio-quality', 'Analyze audio quality (lossless/lossy detection, sample rate, bit depth)')
   .option('--fingerprint', 'Generate acoustic fingerprint (Chromaprint) for audio files')
+  .option('--text-extract', 'Extract text from PDF, Office, Ebook files')
+  .option('--subtitle-extract', 'Parse subtitle files (SRT, VTT, ASS)')
+  .option('--perceptual-hash', 'Generate perceptual hashes for images')
+  .option('--archive-analyze', 'Analyze archive contents')
+  .option('--email-extract', 'Extract email metadata')
+  .option('--font-extract', 'Extract font metadata')
+  .option('--geo-extract', 'Extract geospatial data')
+  .option('--3d-analyze', 'Analyze 3D model files')
+  .option('--calendar-extract', 'Extract calendar/contact data')
+  .option('--all-extractors', 'Enable all available extractors')
   .option('-f, --format <fmt>', 'Output format: text, json', 'text')
   .option('-q, --quiet', 'Minimal output')
   .action(async (source: string, destination: string, options) => {
@@ -64,6 +74,16 @@ export const importCommand = new Command('import')
         guessit: options.guessit,
         audioQuality: options.audioQuality,
         fingerprint: options.fingerprint,
+        textExtract: options.textExtract,
+        subtitleExtract: options.subtitleExtract,
+        perceptualHash: options.perceptualHash,
+        archiveAnalyze: options.archiveAnalyze,
+        emailExtract: options.emailExtract,
+        fontExtract: options.fontExtract,
+        geoExtract: options.geoExtract,
+        model3dAnalyze: options['3dAnalyze'],
+        calendarExtract: options.calendarExtract,
+        allExtractors: options.allExtractors,
         onProgress: (s) => {
           if (!options.quiet && s.status !== lastStatus) {
             lastStatus = s.status;

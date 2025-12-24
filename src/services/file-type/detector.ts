@@ -21,7 +21,15 @@ export type FileCategory =
   | 'ebook'
   | 'executable'
   | 'data'
-  | 'other';
+  | 'other'
+  // Extended categories for universal extraction
+  | 'email'       // .eml, .msg
+  | 'font'        // .ttf, .otf, .woff, .woff2
+  | 'model3d'     // .glb, .gltf, .obj, .fbx
+  | 'calendar'    // .ics, .vcs
+  | 'contact'     // .vcf
+  | 'geospatial'  // .gpx, .kml, .geojson
+  | 'subtitle';   // .srt, .vtt, .ass (separate from sidecar for text extraction)
 
 /**
  * Subcategories for more specific classification
@@ -180,11 +188,9 @@ const MIME_TO_CATEGORY: Record<string, FileCategory> = {
  * Extension to category fallback (when magic bytes fail)
  */
 const EXTENSION_TO_CATEGORY: Record<string, FileCategory> = {
-  // Sidecar files
+  // Sidecar files (metadata companions, NOT subtitles)
   '.xmp': 'sidecar',
   '.thm': 'sidecar',
-  '.srt': 'sidecar',
-  '.vtt': 'sidecar',
   '.lrf': 'sidecar',
   '.lrv': 'sidecar',   // GoPro low-res proxy
   '.aae': 'sidecar',
@@ -220,6 +226,59 @@ const EXTENSION_TO_CATEGORY: Record<string, FileCategory> = {
   '.mobi': 'ebook',
   '.azw': 'ebook',
   '.azw3': 'ebook',
+  '.azw4': 'ebook',
+  '.kfx': 'ebook',
+  '.fb2': 'ebook',
+
+  // Email
+  '.eml': 'email',
+  '.msg': 'email',
+  '.mbox': 'email',
+
+  // Fonts
+  '.ttf': 'font',
+  '.otf': 'font',
+  '.woff': 'font',
+  '.woff2': 'font',
+  '.eot': 'font',
+
+  // 3D Models
+  '.glb': 'model3d',
+  '.gltf': 'model3d',
+  '.obj': 'model3d',
+  '.fbx': 'model3d',
+  '.stl': 'model3d',
+  '.dae': 'model3d',    // Collada
+  '.3ds': 'model3d',
+  '.blend': 'model3d',  // Blender
+  '.usdz': 'model3d',   // Apple AR
+
+  // Calendar
+  '.ics': 'calendar',
+  '.ical': 'calendar',
+  '.vcs': 'calendar',   // vCalendar (older)
+
+  // Contacts
+  '.vcf': 'contact',
+  '.vcard': 'contact',
+
+  // Geospatial
+  '.gpx': 'geospatial',
+  '.kml': 'geospatial',
+  '.kmz': 'geospatial',
+  '.geojson': 'geospatial',
+  '.shp': 'geospatial',
+  '.gpkg': 'geospatial', // GeoPackage
+  '.fit': 'geospatial',  // Garmin FIT
+  '.tcx': 'geospatial',  // Training Center XML
+
+  // Subtitles (separate from sidecar for text extraction)
+  '.srt': 'subtitle',
+  '.vtt': 'subtitle',
+  '.ass': 'subtitle',
+  '.ssa': 'subtitle',
+  '.sub': 'subtitle',
+  '.sbv': 'subtitle',   // YouTube
 };
 
 /**
@@ -373,10 +432,25 @@ function getMimeFromExtension(extension: string): string {
  * All recognized sidecar extensions
  */
 const SIDECAR_EXTS = new Set([
-  '.xmp', '.thm', '.srt', '.vtt', '.lrf', '.lrv',
+  '.xmp', '.thm', '.lrf', '.lrv',
   '.aae', '.moi', '.cpi', '.bdm', '.mpl',
   '.rmd', '.ale', '.sidecar', '.nksc', '.gpr',
 ]);
+
+/**
+ * Subtitle file extensions (separate from sidecars for text extraction)
+ */
+export const SUBTITLE_EXTS = new Set([
+  '.srt', '.vtt', '.ass', '.ssa', '.sub', '.sbv',
+]);
+
+/**
+ * Check if file is a subtitle
+ */
+export function isSubtitleFile(filePath: string): boolean {
+  const ext = path.extname(filePath).toLowerCase();
+  return SUBTITLE_EXTS.has(ext);
+}
 
 /**
  * Check if file is a sidecar

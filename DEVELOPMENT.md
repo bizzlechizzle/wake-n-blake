@@ -411,6 +411,151 @@ it('should hash with xxhash', async () => {
 });
 ```
 
+### Adding a New Metadata Extractor
+
+Wake-n-Blake has 11+ metadata extractors in `src/services/metadata/wrappers/`. Each follows a standard pattern:
+
+1. **Create wrapper file**:
+
+```typescript
+// src/services/metadata/wrappers/myformat.ts
+import { exec } from 'node:child_process';
+import { promisify } from 'node:util';
+import * as fs from 'node:fs/promises';
+
+const execAsync = promisify(exec);
+
+// Cache tool availability check
+let toolAvailable: boolean | null = null;
+
+export interface MyFormatResult {
+  format: string;
+  someField: string;
+  count: number;
+  // ... other fields
+}
+
+/**
+ * Check if the required tool is available
+ */
+export async function isToolAvailable(): Promise<boolean> {
+  if (toolAvailable !== null) return toolAvailable;
+  try {
+    await execAsync('which mytool');
+    toolAvailable = true;
+  } catch {
+    toolAvailable = false;
+  }
+  return toolAvailable;
+}
+
+/**
+ * Extract metadata from file
+ * Returns undefined if extraction fails or tool unavailable
+ */
+export async function extract(filePath: string): Promise<MyFormatResult | undefined> {
+  // Check tool availability
+  if (!(await isToolAvailable())) return undefined;
+
+  // Check file exists
+  try {
+    await fs.access(filePath);
+  } catch {
+    return undefined;
+  }
+
+  // Run extraction
+  try {
+    const { stdout } = await execAsync(`mytool "${filePath}"`);
+    return parseOutput(stdout);
+  } catch {
+    return undefined; // Graceful failure
+  }
+}
+
+/**
+ * Convert result to XMP-compatible key-value pairs
+ * All keys must use the wrapper's prefix (e.g., MyFormat_)
+ */
+export function toRawMetadata(result: MyFormatResult): Record<string, string | number | boolean> {
+  return {
+    'MyFormat_Format': result.format.toUpperCase(),
+    'MyFormat_SomeField': result.someField,
+    'MyFormat_Count': result.count,
+  };
+}
+```
+
+2. **Register in metadata index**:
+
+```typescript
+// src/services/metadata/index.ts
+export * as myformat from './wrappers/myformat.js';
+```
+
+3. **Add to FileCategory if needed**:
+
+```typescript
+// src/schemas/index.ts
+export const FileCategorySchema = z.enum([
+  // ... existing
+  'myformat',  // Add new category
+]);
+```
+
+4. **Integrate with importer**:
+
+```typescript
+// src/services/importer.ts (in sidecar generation section)
+if (useMyFormat && category === 'myformat') {
+  const result = await myformat.extract(file.destPath);
+  if (result) {
+    sidecarData.rawMetadata = {
+      ...sidecarData.rawMetadata,
+      ...myformat.toRawMetadata(result),
+    };
+  }
+}
+```
+
+5. **Add tests**:
+
+```typescript
+// tests/unit/myformat.test.ts
+import { describe, it, expect } from 'vitest';
+import * as myformat from '../../src/services/metadata/wrappers/myformat.js';
+
+describe('MyFormat Extraction', () => {
+  describe('isToolAvailable', () => {
+    it('should return boolean', async () => {
+      const available = await myformat.isToolAvailable();
+      expect(typeof available).toBe('boolean');
+    });
+  });
+
+  describe('extract', () => {
+    it('should return undefined for non-existent files', async () => {
+      const result = await myformat.extract('/nonexistent');
+      expect(result).toBeUndefined();
+    });
+  });
+
+  describe('toRawMetadata', () => {
+    it('should convert to prefixed key-value pairs', () => {
+      const result = { format: 'test', someField: 'value', count: 5 };
+      const meta = myformat.toRawMetadata(result);
+      expect(meta['MyFormat_Format']).toBe('TEST');
+    });
+  });
+});
+```
+
+**Key principles:**
+- Always cache tool availability checks
+- Return `undefined` on failure, never throw
+- Use consistent XMP prefix for all keys
+- Handle missing tools gracefully
+
 ### Adding Device Detection for a New Platform
 
 1. **Create platform detector**:

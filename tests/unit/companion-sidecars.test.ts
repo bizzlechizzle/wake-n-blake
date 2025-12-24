@@ -29,8 +29,9 @@ describe('Companion Sidecars', () => {
 
   describe('isSidecarFile', () => {
     it('should recognize all sidecar extensions', () => {
+      // Note: .srt, .vtt, .ass, .ssa, .sub, .sbv are now 'subtitle' category, not sidecars
       const sidecarExtensions = [
-        '.xmp', '.thm', '.srt', '.vtt', '.lrf', '.lrv',
+        '.xmp', '.thm', '.lrf', '.lrv',
         '.aae', '.moi', '.cpi', '.bdm', '.mpl',
         '.rmd', '.ale', '.sidecar', '.nksc', '.gpr',
       ];

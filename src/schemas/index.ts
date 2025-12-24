@@ -164,7 +164,15 @@ export const SourceTypeSchema = z.enum([
 
 export const FileCategorySchema = z.enum([
   'image', 'video', 'audio', 'document', 'archive',
-  'sidecar', 'ebook', 'executable', 'data', 'other'
+  'sidecar', 'ebook', 'executable', 'data', 'other',
+  // Extended categories for universal extraction
+  'email',       // .eml, .msg
+  'font',        // .ttf, .otf, .woff, .woff2
+  'model3d',     // .glb, .gltf, .obj, .fbx
+  'calendar',    // .ics, .vcs
+  'contact',     // .vcf
+  'geospatial',  // .gpx, .kml, .geojson
+  'subtitle'     // .srt, .vtt, .ass (separate from sidecar for text extraction)
 ]);
 
 export const MediaTypeSchema = z.enum(['sd', 'cf', 'cfexpress', 'ssd', 'hdd', 'nvme']);

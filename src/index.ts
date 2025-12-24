@@ -75,7 +75,9 @@ export type { FastHashOptions, FastHashResult } from './core/fast-hasher.js';
 
 export {
   runImport,
-  getImportStatus
+  getImportStatus,
+  STEP_WEIGHTS,
+  STEP_NAMES
 } from './services/importer.js';
 
 export type {
@@ -84,6 +86,23 @@ export type {
   ImportOptions,
   ImportStatus
 } from './services/importer.js';
+
+// ============================================
+// PROGRESS TRACKING
+// ============================================
+
+export {
+  ProgressTracker,
+  formatDuration,
+  formatBytes,
+  formatThroughput,
+  formatETA,
+  progressBar
+} from './core/progress-tracker.js';
+
+export type {
+  ProgressState
+} from './core/progress-tracker.js';
 
 // ============================================
 // XMP SIDECAR

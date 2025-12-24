@@ -227,18 +227,122 @@ export function formatSize(bytes: number): string {
 
 /**
  * Format duration for display
+ *
+ * @param ms - Duration in milliseconds
+ * @param style - 'short' for CLI (3h15m), 'long' for logs (3 hours, 15 minutes)
  */
-export function formatDuration(ms: number): string {
-  if (ms < 1000) return `${Math.round(ms)}ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)}s`;
-  const minutes = Math.floor(ms / 60000);
-  const seconds = Math.round((ms % 60000) / 1000);
-  return `${minutes}m ${seconds}s`;
+export function formatDuration(ms: number | undefined, style: 'short' | 'long' = 'short'): string {
+  if (ms === undefined || ms < 0) {
+    return style === 'short' ? '--' : 'calculating...';
+  }
+
+  if (ms < 1000) {
+    return style === 'short' ? '< 1s' : 'less than a second';
+  }
+
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+
+  const s = seconds % 60;
+  const m = minutes % 60;
+  const h = hours % 24;
+
+  if (style === 'short') {
+    if (days > 0) return `${days}d${h}h${m}m`;
+    if (hours > 0) return `${h}h${m}m${s}s`;
+    if (minutes > 0) return `${m}m${s}s`;
+    return `${s}s`;
+  }
+
+  // Long format
+  const parts: string[] = [];
+  if (days > 0) parts.push(`${days} day${days !== 1 ? 's' : ''}`);
+  if (h > 0) parts.push(`${h} hour${h !== 1 ? 's' : ''}`);
+  if (m > 0) parts.push(`${m} minute${m !== 1 ? 's' : ''}`);
+  if (s > 0 && days === 0) parts.push(`${s} second${s !== 1 ? 's' : ''}`);
+
+  return parts.length > 0 ? parts.join(', ') : 'less than a second';
+}
+
+/**
+ * Format ETA for display
+ *
+ * User-friendly ETA that handles edge cases gracefully
+ */
+export function formatETA(estimatedRemainingMs: number | undefined): string {
+  if (estimatedRemainingMs === undefined) {
+    return 'calculating...';
+  }
+  if (estimatedRemainingMs < 1000) {
+    return 'almost done';
+  }
+  return formatDuration(estimatedRemainingMs, 'short');
 }
 
 /**
  * Format throughput for display
  */
-export function formatThroughput(bytesPerSecond: number): string {
+export function formatThroughput(bytesPerSecond: number | undefined): string {
+  if (bytesPerSecond === undefined || bytesPerSecond <= 0) {
+    return '--';
+  }
   return `${formatSize(bytesPerSecond)}/s`;
+}
+
+/**
+ * Create enhanced progress bar with ETA
+ *
+ * @param percent - Progress percentage (0-100)
+ * @param width - Bar width in characters (default: 20)
+ * @returns Progress bar string (e.g., "[████████░░░░░░░░░░░░] 40%")
+ */
+export function enhancedProgressBar(percent: number, width = 20): string {
+  const filled = Math.round((percent / 100) * width);
+  const empty = width - filled;
+  const bar = '█'.repeat(filled) + '░'.repeat(empty);
+  return `[${bar}] ${Math.round(percent)}%`;
+}
+
+/**
+ * Format import progress with all details
+ */
+export function formatImportProgress(
+  filesProcessed: number,
+  totalFiles: number,
+  bytesProcessed: number,
+  totalBytes: number,
+  stepName?: string,
+  currentFile?: string,
+  estimatedRemainingMs?: number,
+  throughputBytesPerSec?: number
+): string {
+  const percent = totalFiles > 0 ? (filesProcessed / totalFiles) * 100 : 0;
+  const bar = enhancedProgressBar(percent, 25);
+
+  const lines: string[] = [];
+
+  // Main progress line
+  lines.push(`${bar} ${filesProcessed}/${totalFiles} files`);
+
+  // Step name if provided
+  if (stepName) {
+    lines.push(`Step: ${stepName}`);
+  }
+
+  // Size progress
+  lines.push(`Size: ${formatSize(bytesProcessed)} / ${formatSize(totalBytes)}`);
+
+  // Throughput and ETA
+  const throughput = formatThroughput(throughputBytesPerSec);
+  const eta = formatETA(estimatedRemainingMs);
+  lines.push(`Speed: ${throughput} | ETA: ${eta}`);
+
+  // Current file (truncated)
+  if (currentFile) {
+    lines.push(`File: ${truncatePath(currentFile, 50)}`);
+  }
+
+  return lines.join('\n');
 }

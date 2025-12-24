@@ -18,6 +18,7 @@ Universal BLAKE3 hashing, verification, and file provenance CLI for professional
 - **Audio analysis**: Quality classification (lossless/lossy), transcode detection, sample rate/bit depth
 - **Acoustic fingerprinting**: Chromaprint integration for audio identification
 - **Video metadata parsing**: guessit integration for TV/movie filename parsing
+- **Universal metadata extraction**: 11 specialized extractors for documents, archives, emails, fonts, and more
 - **Extension learning**: Dynamic file type categorization with user feedback loop
 - **400+ media types**: Comprehensive coverage of image, video, audio, RAW, sidecar, ebook, game, archive formats
 - **Network-aware**: Optimized for SMB/NFS with automatic retry logic
@@ -271,6 +272,18 @@ Options:
   --audio-quality         Analyze audio quality (lossless/lossy, sample rate, bit depth)
   --fingerprint           Generate Chromaprint acoustic fingerprint for audio files
 
+Extended Extractors:
+  --text-extract          Extract text from PDF, Office, Ebook files
+  --subtitle-extract      Parse subtitle files (SRT, VTT, ASS)
+  --perceptual-hash       Generate perceptual hashes for images
+  --archive-analyze       Analyze archive contents
+  --email-extract         Extract email metadata
+  --font-extract          Extract font metadata
+  --geo-extract           Extract geospatial data
+  --3d-analyze            Analyze 3D model files
+  --calendar-extract      Extract calendar/contact data
+  --all-extractors        Enable all available extractors
+
 Examples:
   # Full provenance import from camera card
   wnb import /Volumes/DCIM /archive \
@@ -287,6 +300,10 @@ Examples:
 
   # Quick import with deduplication
   wnb import /source /dest --dedup --manifest
+
+  # Import documents with full text extraction
+  wnb import /documents /archive \
+    --sidecar --text-extract --all-extractors
 ```
 
 ---
@@ -460,6 +477,23 @@ Examples:
 #### `wnb diagnose` - System diagnostics
 ```bash
 wnb diagnose [-v] [-f json]
+```
+
+#### `wnb analyze` - Universal file analysis
+```bash
+wnb analyze <file> [options]
+
+Options:
+  -f, --format <fmt>  Output format: text, json (default: text)
+  --raw               Show raw metadata from all extractors
+  --tools             Show which tools were used
+  --available         List available extractors
+
+Examples:
+  wnb analyze photo.jpg                # Analyze image with all applicable extractors
+  wnb analyze document.pdf --tools     # Show which tools extracted what
+  wnb analyze archive.zip --raw        # Raw metadata output
+  wnb analyze video.mkv -f json        # JSON output
 ```
 
 ---

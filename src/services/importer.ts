@@ -14,7 +14,7 @@ import type { Manifest, ManifestEntry } from '../schemas/index.js';
 import { detectFileType, isSidecarFile, isSkippedFile } from './file-type/detector.js';
 import { writeSidecar } from './xmp/writer.js';
 import { detectSourceDevice, getSourceType } from './device/index.js';
-import { extractMetadata, cleanup as cleanupMetadata, exiftool, guessit, audioQuality, chromaprint, mergeCompanionMetadata, findCompanionSidecars, batchFindCompanionSidecars, shouldEmbedContent } from './metadata/index.js';
+import { extractMetadata, cleanup as cleanupMetadata, exiftool, guessit, audioQuality, chromaprint, mergeCompanionMetadata, batchFindCompanionSidecars, shouldEmbedContent, pdfText, officeText, ebook, subtitle, perceptualHash, archive, email, font, geospatial, model3d, calendar } from './metadata/index.js';
 import { findRelatedFiles, isPrimaryFile, type RelatedFileGroup } from './related-files/index.js';
 import type { XmpSidecarData, CustodyEvent, ImportSourceDevice, SourceType, FileCategory } from './xmp/schema.js';
 import { SCHEMA_VERSION } from './xmp/schema.js';
@@ -37,6 +37,26 @@ function mapToFileCategory(category?: string): FileCategory {
       return 'archive';
     case 'sidecar':
       return 'sidecar';
+    case 'ebook':
+      return 'ebook';
+    case 'email':
+      return 'email';
+    case 'font':
+      return 'font';
+    case 'model3d':
+      return 'model3d';
+    case 'calendar':
+      return 'calendar';
+    case 'contact':
+      return 'contact';
+    case 'geospatial':
+      return 'geospatial';
+    case 'subtitle':
+      return 'subtitle';
+    case 'executable':
+      return 'executable';
+    case 'data':
+      return 'data';
     default:
       return 'other';
   }
@@ -60,6 +80,43 @@ export type ImportStatus =
 
 const VERSION = '0.1.5';
 
+/**
+ * Step weights for weighted progress calculation
+ * Based on observed timing from abandoned-archive benchmarks
+ * Total: 100%
+ */
+export const STEP_WEIGHTS = {
+  scanning: 5,            // 0-5%     - Fast I/O
+  'detecting-device': 2,  // 5-7%     - Quick device check
+  'detecting-related': 3, // 7-10%    - File relationship scan
+  hashing: 25,            // 10-35%   - CPU-bound BLAKE3
+  copying: 35,            // 35-70%   - I/O-bound, variable network
+  validating: 10,         // 70-80%   - Re-read verification
+  'extracting-metadata': 10, // 80-90% - ExifTool + other extractors
+  'generating-sidecars': 8,  // 90-98% - XMP writes
+  'generating-manifest': 2,  // 98-100% - Final manifest write
+} as const;
+
+/**
+ * Human-readable step names
+ */
+export const STEP_NAMES: Record<ImportStatus, string> = {
+  pending: 'Pending',
+  scanning: 'Scanning files',
+  'detecting-device': 'Detecting source device',
+  'detecting-related': 'Finding related files',
+  hashing: 'Computing hashes',
+  copying: 'Copying files',
+  renaming: 'Renaming files',
+  validating: 'Validating copies',
+  'extracting-metadata': 'Extracting metadata',
+  'generating-sidecars': 'Generating sidecars',
+  'generating-manifest': 'Writing manifest',
+  completed: 'Completed',
+  paused: 'Paused',
+  failed: 'Failed',
+};
+
 export interface ImportSession {
   id: string;
   status: ImportStatus;
@@ -77,13 +134,22 @@ export interface ImportSession {
   completedAt?: string;
   error?: string;
   files: ImportFileState[];
-  // New fields
+  // Batch tracking
   batchId?: string;
   batchName?: string;
   sourceDevice?: ImportSourceDevice;
   sourceType?: SourceType;
   sourceVolume?: string;
   sourceVolumeSerial?: string;
+  // Progress tracking (ETA system)
+  step?: number;                      // Current pipeline step (1-9)
+  stepName?: string;                  // Human-readable step name
+  stepPercent?: number;               // Percent within current step (0-100)
+  overallPercent?: number;            // Weighted overall percent (0-100)
+  estimatedRemainingMs?: number;      // ETA in milliseconds
+  currentFile?: string;               // File currently being processed
+  throughputBytesPerSec?: number;     // Current throughput
+  elapsedMs?: number;                 // Elapsed time in milliseconds
 }
 
 /** Companion sidecar that was copied alongside a primary file */
@@ -138,6 +204,18 @@ export interface ImportOptions {
   audioQuality?: boolean;  // Analyze audio quality (lossless/lossy, sample rate, bit depth)
   fingerprint?: boolean;  // Generate acoustic fingerprint (Chromaprint)
 
+  // Extended extraction options (universal metadata extraction)
+  textExtract?: boolean;      // Extract text from PDF, Office, Ebook files
+  subtitleExtract?: boolean;  // Parse subtitle files (SRT, VTT, ASS)
+  perceptualHash?: boolean;   // Generate perceptual hashes for images (pHash, dHash)
+  archiveAnalyze?: boolean;   // Analyze archive contents (file listing, compression)
+  emailExtract?: boolean;     // Extract email metadata (EML, MSG)
+  fontExtract?: boolean;      // Extract font metadata (TTF, OTF, WOFF)
+  geoExtract?: boolean;       // Extract geospatial data (GPX, KML, GeoJSON)
+  model3dAnalyze?: boolean;   // Analyze 3D model files (GLB, GLTF, OBJ)
+  calendarExtract?: boolean;  // Extract calendar/contact data (ICS, VCF)
+  allExtractors?: boolean;    // Enable all available extractors
+
   // Integration options for external apps (e.g., abandoned-archive)
   /**
    * Custom path builder for destination files.
@@ -189,6 +267,17 @@ export async function runImport(
     guessit: useGuessit = false,
     audioQuality: useAudioQuality = false,
     fingerprint: useFingerprint = false,
+    // Extended extraction options
+    textExtract: useTextExtract = false,
+    subtitleExtract: useSubtitleExtract = false,
+    perceptualHash: usePerceptualHash = false,
+    archiveAnalyze: useArchiveAnalyze = false,
+    emailExtract: useEmailExtract = false,
+    fontExtract: useFontExtract = false,
+    geoExtract: useGeoExtract = false,
+    model3dAnalyze: useModel3dAnalyze = false,
+    calendarExtract: useCalendarExtract = false,
+    allExtractors = false,
     // Integration options
     pathBuilder,
     existingHashes
@@ -785,6 +874,187 @@ export async function runImport(
               }
             } catch {
               // fingerprinting is optional, continue without it
+            }
+          }
+
+          // ============== NEW EXTRACTORS ==============
+          // Note: allExtractors flag enables all extractors for applicable file types
+
+          const ext = path.extname(file.destPath).toLowerCase();
+
+          // Tier 1: Text extraction from PDF files
+          if ((useTextExtract || allExtractors) && category === 'document' && ext === '.pdf') {
+            try {
+              const pdfResult = await pdfText.extract(file.destPath);
+              if (pdfResult) {
+                const pdfMeta = pdfText.toRawMetadata(pdfResult);
+                sidecarData.rawMetadata = {
+                  ...sidecarData.rawMetadata,
+                  ...pdfMeta,
+                };
+              }
+            } catch {
+              // PDF text extraction is optional, continue without it
+            }
+          }
+
+          // Tier 1: Text extraction from Office documents
+          if ((useTextExtract || allExtractors) && category === 'document' && ['.docx', '.pptx', '.xlsx'].includes(ext)) {
+            try {
+              const officeResult = await officeText.extract(file.destPath);
+              if (officeResult) {
+                const officeMeta = officeText.toRawMetadata(officeResult);
+                sidecarData.rawMetadata = {
+                  ...sidecarData.rawMetadata,
+                  ...officeMeta,
+                };
+              }
+            } catch {
+              // Office text extraction is optional, continue without it
+            }
+          }
+
+          // Tier 1: Ebook metadata extraction
+          if ((useTextExtract || allExtractors) && category === 'ebook') {
+            try {
+              const ebookResult = await ebook.extract(file.destPath);
+              if (ebookResult) {
+                const ebookMeta = ebook.toRawMetadata(ebookResult);
+                sidecarData.rawMetadata = {
+                  ...sidecarData.rawMetadata,
+                  ...ebookMeta,
+                };
+              }
+            } catch {
+              // Ebook extraction is optional, continue without it
+            }
+          }
+
+          // Tier 1: Subtitle parsing
+          if ((useSubtitleExtract || allExtractors) && category === 'subtitle') {
+            try {
+              const subtitleResult = await subtitle.extract(file.destPath);
+              if (subtitleResult) {
+                const subtitleMeta = subtitle.toRawMetadata(subtitleResult);
+                sidecarData.rawMetadata = {
+                  ...sidecarData.rawMetadata,
+                  ...subtitleMeta,
+                };
+              }
+            } catch {
+              // Subtitle parsing is optional, continue without it
+            }
+          }
+
+          // Tier 1: Perceptual hashing for images
+          if ((usePerceptualHash || allExtractors) && (category === 'image' || category === 'photo')) {
+            try {
+              const phashResult = await perceptualHash.compute(file.destPath);
+              if (phashResult) {
+                const phashMeta = perceptualHash.toRawMetadata(phashResult);
+                sidecarData.rawMetadata = {
+                  ...sidecarData.rawMetadata,
+                  ...phashMeta,
+                };
+              }
+            } catch {
+              // Perceptual hashing is optional, continue without it
+            }
+          }
+
+          // Tier 2: Archive analysis
+          if ((useArchiveAnalyze || allExtractors) && category === 'archive') {
+            try {
+              const archiveResult = await archive.analyze(file.destPath);
+              if (archiveResult) {
+                const archiveMeta = archive.toRawMetadata(archiveResult);
+                sidecarData.rawMetadata = {
+                  ...sidecarData.rawMetadata,
+                  ...archiveMeta,
+                };
+              }
+            } catch {
+              // Archive analysis is optional, continue without it
+            }
+          }
+
+          // Tier 2: Email metadata extraction
+          if ((useEmailExtract || allExtractors) && category === 'email') {
+            try {
+              const emailResult = await email.extract(file.destPath);
+              if (emailResult) {
+                const emailMeta = email.toRawMetadata(emailResult);
+                sidecarData.rawMetadata = {
+                  ...sidecarData.rawMetadata,
+                  ...emailMeta,
+                };
+              }
+            } catch {
+              // Email extraction is optional, continue without it
+            }
+          }
+
+          // Tier 2: Font metadata extraction
+          if ((useFontExtract || allExtractors) && category === 'font') {
+            try {
+              const fontResult = await font.extract(file.destPath);
+              if (fontResult) {
+                const fontMeta = font.toRawMetadata(fontResult);
+                sidecarData.rawMetadata = {
+                  ...sidecarData.rawMetadata,
+                  ...fontMeta,
+                };
+              }
+            } catch {
+              // Font extraction is optional, continue without it
+            }
+          }
+
+          // Tier 3: Geospatial data extraction
+          if ((useGeoExtract || allExtractors) && category === 'geospatial') {
+            try {
+              const geoResult = await geospatial.extract(file.destPath);
+              if (geoResult) {
+                const geoMeta = geospatial.toRawMetadata(geoResult);
+                sidecarData.rawMetadata = {
+                  ...sidecarData.rawMetadata,
+                  ...geoMeta,
+                };
+              }
+            } catch {
+              // Geospatial extraction is optional, continue without it
+            }
+          }
+
+          // Tier 3: 3D model analysis
+          if ((useModel3dAnalyze || allExtractors) && category === 'model3d') {
+            try {
+              const model3dResult = await model3d.analyze(file.destPath);
+              if (model3dResult) {
+                const model3dMeta = model3d.toRawMetadata(model3dResult);
+                sidecarData.rawMetadata = {
+                  ...sidecarData.rawMetadata,
+                  ...model3dMeta,
+                };
+              }
+            } catch {
+              // 3D model analysis is optional, continue without it
+            }
+          }
+
+          // Tier 3: Calendar/Contact extraction
+          if ((useCalendarExtract || allExtractors) && (category === 'calendar' || category === 'contact')) {
+            try {
+              const calResult = await calendar.extract(file.destPath);
+              if (calResult) {
+                const calMeta = calendar.toRawMetadata(calResult);
+                sidecarData.rawMetadata = {
+                  ...sidecarData.rawMetadata,
+                  ...calMeta,
+                };
+              }
+            } catch {
+              // Calendar/Contact extraction is optional, continue without it
             }
           }
 

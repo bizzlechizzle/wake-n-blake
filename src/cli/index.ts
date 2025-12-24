@@ -23,6 +23,7 @@ import { bagitCommand } from './commands/bagit.js';
 import { gpsCommand } from './commands/gps.js';
 import { phashCommand } from './commands/phash.js';
 import { mhlCommand } from './commands/mhl.js';
+import { analyzeCommand } from './commands/analyze.js';
 
 const VERSION = '0.1.1';
 
@@ -71,6 +72,9 @@ export function createCli(): Command {
 
   // Perceptual hashing
   program.addCommand(phashCommand);
+
+  // File analysis
+  program.addCommand(analyzeCommand);
 
   return program;
 }

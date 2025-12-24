@@ -1540,6 +1540,111 @@ npm run test:integration     # Integration tests (needs fixtures)
 - Audio Quality: Uses ffprobe (optional)
 - Chromaprint: Optional (brew install chromaprint)
 
+### Phase 3d: Extended Metadata Extraction ✅ (v0.1.6)
+- [x] PDF text extraction (pdftotext, PyMuPDF)
+- [x] Office document text (python-docx, python-pptx, openpyxl)
+- [x] Ebook metadata (calibre ebook-meta)
+- [x] Subtitle parsing (SRT, VTT, ASS - pure TypeScript)
+- [x] Perceptual hashing (imagehash - pHash, dHash, aHash)
+- [x] Archive analysis (7-Zip/p7zip)
+- [x] Email metadata (extract-msg for .msg, native for .eml)
+- [x] Font metadata (fonttools)
+- [x] Geospatial data (GDAL ogrinfo)
+- [x] 3D model analysis (gltf-transform, trimesh)
+- [x] Calendar/contact parsing (vobject, icalendar)
+- [x] `wnb analyze` command for universal file analysis
+- [x] Extended import flags (`--all-extractors`, `--text-extract`, etc.)
+
+**Tool Availability Matrix:**
+
+| Extractor | Tool | Install Command | XMP Prefix |
+|-----------|------|-----------------|------------|
+| PDF Text | pdftotext | `brew install poppler` | `PDFText_` |
+| PDF Text | PyMuPDF | `pip install PyMuPDF` | `PDFText_` |
+| Office | python-docx | `pip install python-docx` | `Office_` |
+| Office | python-pptx | `pip install python-pptx` | `Office_` |
+| Office | openpyxl | `pip install openpyxl` | `Office_` |
+| Ebook | ebook-meta | `brew install calibre` | `Ebook_` |
+| Subtitle | (built-in) | N/A | `Subtitle_` |
+| Perceptual Hash | imagehash | `pip install imagehash` | `PHash_` |
+| Archive | 7z | `brew install p7zip` | `Archive_` |
+| Email | extract-msg | `pip install extract-msg` | `Email_` |
+| Font | fonttools | `pip install fonttools` | `Font_` |
+| Geospatial | ogrinfo | `brew install gdal` | `Geo_` |
+| 3D Model | gltf-transform | `npm i -g @gltf-transform/cli` | `Model3D_` |
+| 3D Model | trimesh | `pip install trimesh` | `Model3D_` |
+| Calendar | vobject | `pip install vobject` | `Calendar_` |
+| Contact | vobject | `pip install vobject` | `Contact_` |
+
+**XMP Field Mappings:**
+
+```xml
+<!-- PDF Text -->
+<wnb:PDFText_HasText>true</wnb:PDFText_HasText>
+<wnb:PDFText_PageCount>10</wnb:PDFText_PageCount>
+<wnb:PDFText_WordCount>5000</wnb:PDFText_WordCount>
+<wnb:PDFText_ExtractionMethod>pdftotext</wnb:PDFText_ExtractionMethod>
+
+<!-- Office -->
+<wnb:Office_Format>DOCX</wnb:Office_Format>
+<wnb:Office_WordCount>2500</wnb:Office_WordCount>
+<wnb:Office_ParagraphCount>50</wnb:Office_ParagraphCount>
+
+<!-- Ebook -->
+<wnb:Ebook_Title>My Book</wnb:Ebook_Title>
+<wnb:Ebook_Authors>John Doe; Jane Smith</wnb:Ebook_Authors>
+<wnb:Ebook_ISBN>978-0-123456-78-9</wnb:Ebook_ISBN>
+
+<!-- Subtitle -->
+<wnb:Subtitle_Format>SRT</wnb:Subtitle_Format>
+<wnb:Subtitle_CueCount>500</wnb:Subtitle_CueCount>
+<wnb:Subtitle_Duration>7200</wnb:Subtitle_Duration>
+
+<!-- Perceptual Hash -->
+<wnb:PHash_PHash>d4e5f6a7b8c9d0e1</wnb:PHash_PHash>
+<wnb:PHash_DHash>a1b2c3d4e5f6a7b8</wnb:PHash_DHash>
+<wnb:PHash_AHash>1234567890abcdef</wnb:PHash_AHash>
+
+<!-- Archive -->
+<wnb:Archive_Format>ZIP</wnb:Archive_Format>
+<wnb:Archive_FileCount>100</wnb:Archive_FileCount>
+<wnb:Archive_TotalSize>1073741824</wnb:Archive_TotalSize>
+<wnb:Archive_Encrypted>false</wnb:Archive_Encrypted>
+
+<!-- Email -->
+<wnb:Email_Format>EML</wnb:Email_Format>
+<wnb:Email_Subject>Meeting Notes</wnb:Email_Subject>
+<wnb:Email_From>sender@example.com</wnb:Email_From>
+<wnb:Email_AttachmentCount>3</wnb:Email_AttachmentCount>
+
+<!-- Font -->
+<wnb:Font_Format>TTF</wnb:Font_Format>
+<wnb:Font_Family>Helvetica Neue</wnb:Font_Family>
+<wnb:Font_GlyphCount>500</wnb:Font_GlyphCount>
+
+<!-- Geospatial -->
+<wnb:Geo_Format>GPX</wnb:Geo_Format>
+<wnb:Geo_FeatureCount>250</wnb:Geo_FeatureCount>
+<wnb:Geo_TrackCount>5</wnb:Geo_TrackCount>
+<wnb:Geo_TotalDistance>42195</wnb:Geo_TotalDistance>
+
+<!-- 3D Model -->
+<wnb:Model3D_Format>GLB</wnb:Model3D_Format>
+<wnb:Model3D_VertexCount>50000</wnb:Model3D_VertexCount>
+<wnb:Model3D_FaceCount>25000</wnb:Model3D_FaceCount>
+<wnb:Model3D_MaterialCount>5</wnb:Model3D_MaterialCount>
+
+<!-- Calendar -->
+<wnb:Calendar_Format>ICS</wnb:Calendar_Format>
+<wnb:Calendar_EventCount>150</wnb:Calendar_EventCount>
+<wnb:Calendar_HasRecurring>true</wnb:Calendar_HasRecurring>
+
+<!-- Contact -->
+<wnb:Contact_Format>VCF</wnb:Contact_Format>
+<wnb:Contact_Count>500</wnb:Contact_Count>
+<wnb:Contact_WithEmail>450</wnb:Contact_WithEmail>
+```
+
 ### Phase 4: Import Pipeline (Full) ✅
 - [x] BLAKE3-16 file renaming (--rename flag)
 - [x] Preserve original name (default, use --rename to hash-name)

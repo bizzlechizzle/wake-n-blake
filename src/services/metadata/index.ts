@@ -20,6 +20,23 @@ import * as guessit from './wrappers/guessit.js';
 import * as audioQuality from './wrappers/audio-quality.js';
 import * as chromaprint from './wrappers/chromaprint.js';
 
+// Tier 1 wrappers
+import * as pdfText from './wrappers/pdf-text.js';
+import * as officeText from './wrappers/office-text.js';
+import * as ebook from './wrappers/ebook.js';
+import * as subtitle from './wrappers/subtitle.js';
+import * as perceptualHash from './wrappers/perceptual-hash.js';
+
+// Tier 2 wrappers
+import * as archive from './wrappers/archive.js';
+import * as email from './wrappers/email.js';
+import * as font from './wrappers/font.js';
+
+// Tier 3 wrappers
+import * as geospatial from './wrappers/geospatial.js';
+import * as model3d from './wrappers/model3d.js';
+import * as calendar from './wrappers/calendar.js';
+
 /**
  * Combined metadata result
  */
@@ -285,28 +302,98 @@ function mergeAudioMetadata(
 }
 
 /**
- * Check available extraction tools
+ * Tool availability result
  */
-export async function getAvailableTools(): Promise<{
+export interface ToolAvailability {
+  // Core tools
   exiftool: boolean;
   mediainfo: boolean;
   ffprobe: boolean;
   guessit: boolean;
   chromaprint: boolean;
-}> {
-  const [mediainfoAvail, ffprobeAvail, guessitAvail, chromaprintAvail] = await Promise.all([
+  // Tier 1
+  pdftotext: boolean;
+  pymupdf: boolean;
+  officeTools: boolean;
+  calibre: boolean;
+  imagehash: boolean;
+  // Tier 2
+  sevenzip: boolean;
+  emailTools: boolean;
+  fonttools: boolean;
+  // Tier 3
+  gdal: boolean;
+  gltfTransform: boolean;
+  trimesh: boolean;
+  vobject: boolean;
+}
+
+/**
+ * Check available extraction tools
+ */
+export async function getAvailableTools(): Promise<ToolAvailability> {
+  const [
+    // Core tools
+    mediainfoAvail,
+    ffprobeAvail,
+    guessitAvail,
+    chromaprintAvail,
+    // Tier 1
+    pdfTools,
+    officeToolsAvail,
+    calibreAvail,
+    imagehashAvail,
+    // Tier 2
+    sevenzipAvail,
+    emailToolsAvail,
+    fonttoolsAvail,
+    // Tier 3
+    gdalAvail,
+    gltfTools,
+    vobjectAvail,
+  ] = await Promise.all([
+    // Core tools
     mediainfo.isMediaInfoAvailable(),
     ffprobe.isFFProbeAvailable(),
     guessit.isGuessitAvailable(),
     chromaprint.isChromaprintAvailable(),
+    // Tier 1
+    pdfText.getAvailableTools(),
+    officeText.isOfficeTextAvailable(),
+    ebook.isEbookAvailable(),
+    perceptualHash.isPerceptualHashAvailable(),
+    // Tier 2
+    archive.isArchiveAvailable(),
+    email.isEmailAvailable(),
+    font.isFontAvailable(),
+    // Tier 3
+    geospatial.isGeospatialAvailable(),
+    model3d.getAvailableTools(),
+    calendar.isCalendarAvailable(),
   ]);
 
   return {
+    // Core tools
     exiftool: true, // exiftool-vendored bundles ExifTool
     mediainfo: mediainfoAvail,
     ffprobe: ffprobeAvail,
     guessit: guessitAvail,
     chromaprint: chromaprintAvail,
+    // Tier 1
+    pdftotext: pdfTools.includes('pdftotext'),
+    pymupdf: pdfTools.includes('pymupdf'),
+    officeTools: officeToolsAvail,
+    calibre: calibreAvail,
+    imagehash: imagehashAvail,
+    // Tier 2
+    sevenzip: sevenzipAvail,
+    emailTools: emailToolsAvail,
+    fonttools: fonttoolsAvail,
+    // Tier 3
+    gdal: gdalAvail,
+    gltfTransform: gltfTools.includes('gltf-transform'),
+    trimesh: gltfTools.includes('trimesh'),
+    vobject: vobjectAvail,
   };
 }
 
@@ -325,6 +412,15 @@ export const writeFullMetadataJson = exiftool.writeFullMetadataJson;
 
 // Re-export individual extractors for direct access
 export { exiftool, ffprobe, mediainfo, guessit, audioQuality, chromaprint };
+
+// Re-export Tier 1 wrappers
+export { pdfText, officeText, ebook, subtitle, perceptualHash };
+
+// Re-export Tier 2 wrappers
+export { archive, email, font };
+
+// Re-export Tier 3 wrappers
+export { geospatial, model3d, calendar };
 
 // Re-export companion sidecar functions
 export const mergeCompanionMetadata = exiftool.mergeCompanionMetadata;

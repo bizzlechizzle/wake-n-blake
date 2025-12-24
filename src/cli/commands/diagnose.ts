@@ -13,6 +13,13 @@ import { formatError } from '../output.js';
 
 const execAsync = promisify(exec);
 
+interface ToolStatus {
+  available: boolean;
+  path?: string;
+  version?: string;
+  installHint?: string;
+}
+
 interface DiagnoseResult {
   blake3: {
     native: { available: boolean; path?: string; version?: string };
@@ -26,6 +33,29 @@ interface DiagnoseResult {
   idGeneration: {
     uuid: { available: boolean; version?: string };
     ulid: { available: boolean; version?: string };
+  };
+  tools: {
+    // Core
+    exiftool: ToolStatus;
+    mediainfo: ToolStatus;
+    ffprobe: ToolStatus;
+    // Tier 1
+    pdftotext: ToolStatus;
+    pymupdf: ToolStatus;
+    officeTools: ToolStatus;
+    calibre: ToolStatus;
+    imagehash: ToolStatus;
+    guessit: ToolStatus;
+    chromaprint: ToolStatus;
+    // Tier 2
+    sevenzip: ToolStatus;
+    emailTools: ToolStatus;
+    fonttools: ToolStatus;
+    // Tier 3
+    gdal: ToolStatus;
+    gltfTransform: ToolStatus;
+    trimesh: ToolStatus;
+    vobject: ToolStatus;
   };
   system: {
     platform: string;
@@ -61,6 +91,24 @@ export const diagnoseCommand = new Command('diagnose')
       process.exit(1);
     }
   });
+
+async function checkCommandExists(cmd: string): Promise<{ available: boolean; path?: string }> {
+  try {
+    const { stdout } = await execAsync(`which ${cmd}`);
+    return { available: true, path: stdout.trim() };
+  } catch {
+    return { available: false };
+  }
+}
+
+async function checkPythonLib(lib: string): Promise<boolean> {
+  try {
+    await execAsync(`python3 -c "import ${lib}"`);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function runDiagnostics(): Promise<DiagnoseResult> {
   // Check native b3sum
@@ -107,6 +155,41 @@ async function runDiagnostics(): Promise<DiagnoseResult> {
   } catch {
     // Not installed
   }
+
+  // Check all tools in parallel
+  const [
+    ffprobe, mediainfo, pdftotext, calibre, fpcalc,
+    sevenzip, ogrinfo, gltfTransform
+  ] = await Promise.all([
+    checkCommandExists('ffprobe'),
+    checkCommandExists('mediainfo'),
+    checkCommandExists('pdftotext'),
+    checkCommandExists('ebook-meta'),
+    checkCommandExists('fpcalc'),
+    checkCommandExists('7z'),
+    checkCommandExists('ogrinfo'),
+    checkCommandExists('gltf-transform'),
+  ]);
+
+  // Check Python libraries in parallel
+  const [
+    hasImagehash, hasGuessit, hasPymupdf, hasDocx, hasPptx, hasOpenpyxl,
+    hasExtractMsg, hasFonttools, hasTrimesh, hasVobject, hasIcalendar
+  ] = await Promise.all([
+    checkPythonLib('imagehash'),
+    checkPythonLib('guessit'),
+    checkPythonLib('fitz'),
+    checkPythonLib('docx'),
+    checkPythonLib('pptx'),
+    checkPythonLib('openpyxl'),
+    checkPythonLib('extract_msg'),
+    checkPythonLib('fontTools'),
+    checkPythonLib('trimesh'),
+    checkPythonLib('vobject'),
+    checkPythonLib('icalendar'),
+  ]);
+
+  const hasOfficeTools = hasDocx || hasPptx || hasOpenpyxl;
 
   // Detect network mounts (Linux)
   const networkMounts: Array<{ path: string; type: string }> = [];
@@ -165,6 +248,29 @@ async function runDiagnostics(): Promise<DiagnoseResult> {
       uuid: { available: true, version: uuidVersion },
       ulid: { available: true, version: ulidVersion }
     },
+    tools: {
+      // Core (bundled)
+      exiftool: { available: true, installHint: 'bundled via exiftool-vendored' },
+      mediainfo: { ...mediainfo, installHint: 'brew install mediainfo' },
+      ffprobe: { ...ffprobe, installHint: 'brew install ffmpeg' },
+      // Tier 1
+      pdftotext: { ...pdftotext, installHint: 'brew install poppler' },
+      pymupdf: { available: hasPymupdf, installHint: 'pip install PyMuPDF' },
+      officeTools: { available: hasOfficeTools, installHint: 'pip install python-docx python-pptx openpyxl' },
+      calibre: { ...calibre, installHint: 'brew install calibre' },
+      imagehash: { available: hasImagehash, installHint: 'pip install imagehash' },
+      guessit: { available: hasGuessit, installHint: 'pip install guessit' },
+      chromaprint: { available: fpcalc.available, path: fpcalc.path, installHint: 'brew install chromaprint' },
+      // Tier 2
+      sevenzip: { ...sevenzip, installHint: 'brew install p7zip' },
+      emailTools: { available: hasExtractMsg, installHint: 'pip install extract-msg' },
+      fonttools: { available: hasFonttools, installHint: 'pip install fonttools' },
+      // Tier 3
+      gdal: { ...ogrinfo, installHint: 'brew install gdal' },
+      gltfTransform: { ...gltfTransform, installHint: 'npm install -g @gltf-transform/cli' },
+      trimesh: { available: hasTrimesh, installHint: 'pip install trimesh' },
+      vobject: { available: hasVobject || hasIcalendar, installHint: 'pip install vobject' },
+    },
     system: {
       platform: `${os.platform()} ${os.arch()}`,
       arch: os.arch(),
@@ -181,7 +287,14 @@ async function runDiagnostics(): Promise<DiagnoseResult> {
   };
 }
 
-function printDiagnostics(result: DiagnoseResult, _verbose: boolean = false): void {
+function formatToolStatus(tool: ToolStatus): string {
+  if (tool.available) {
+    return tool.path ? `✓ ${tool.path}` : '✓ available';
+  }
+  return `✗ ${tool.installHint || 'not available'}`;
+}
+
+function printDiagnostics(result: DiagnoseResult, verbose: boolean = false): void {
   console.log('BLAKE3 Support');
   console.log(`├── Native b3sum: ${result.blake3.native.available
     ? `${result.blake3.native.path}${result.blake3.native.version ? ` (${result.blake3.native.version})` : ''}`
@@ -200,6 +313,31 @@ function printDiagnostics(result: DiagnoseResult, _verbose: boolean = false): vo
   console.log(`└── ULID: ${result.idGeneration.ulid.available ? 'AVAILABLE' : 'unavailable'}`);
   console.log();
 
+  // Tool Availability
+  console.log('Tool Availability');
+  console.log('  Core:');
+  console.log(`    exiftool ........ ${formatToolStatus(result.tools.exiftool)}`);
+  console.log(`    mediainfo ....... ${formatToolStatus(result.tools.mediainfo)}`);
+  console.log(`    ffprobe ......... ${formatToolStatus(result.tools.ffprobe)}`);
+  console.log('  Tier 1 (Text/Hash):');
+  console.log(`    pdftotext ....... ${formatToolStatus(result.tools.pdftotext)}`);
+  console.log(`    PyMuPDF ......... ${formatToolStatus(result.tools.pymupdf)}`);
+  console.log(`    Office tools .... ${formatToolStatus(result.tools.officeTools)}`);
+  console.log(`    Calibre ......... ${formatToolStatus(result.tools.calibre)}`);
+  console.log(`    imagehash ....... ${formatToolStatus(result.tools.imagehash)}`);
+  console.log(`    guessit ......... ${formatToolStatus(result.tools.guessit)}`);
+  console.log(`    chromaprint ..... ${formatToolStatus(result.tools.chromaprint)}`);
+  console.log('  Tier 2 (Archive/Email/Font):');
+  console.log(`    7-Zip ........... ${formatToolStatus(result.tools.sevenzip)}`);
+  console.log(`    email-tools ..... ${formatToolStatus(result.tools.emailTools)}`);
+  console.log(`    fonttools ....... ${formatToolStatus(result.tools.fonttools)}`);
+  console.log('  Tier 3 (Geo/3D/Calendar):');
+  console.log(`    GDAL ............ ${formatToolStatus(result.tools.gdal)}`);
+  console.log(`    gltf-transform .. ${formatToolStatus(result.tools.gltfTransform)}`);
+  console.log(`    trimesh ......... ${formatToolStatus(result.tools.trimesh)}`);
+  console.log(`    vobject ......... ${formatToolStatus(result.tools.vobject)}`);
+  console.log();
+
   console.log('System');
   console.log(`├── Platform: ${result.system.platform}`);
   console.log(`├── Node.js:  ${result.system.nodeVersion}`);
@@ -207,12 +345,16 @@ function printDiagnostics(result: DiagnoseResult, _verbose: boolean = false): vo
   console.log(`└── Memory:   ${result.system.memory}`);
   console.log();
 
-  if (result.networkMounts.length > 0) {
+  if (result.networkMounts.length > 0 || verbose) {
     console.log('Network Mounts Detected');
-    result.networkMounts.forEach((mount, i) => {
-      const prefix = i === result.networkMounts.length - 1 ? '└──' : '├──';
-      console.log(`${prefix} ${mount.path}: ${mount.type}`);
-    });
+    if (result.networkMounts.length === 0) {
+      console.log('  (none)');
+    } else {
+      result.networkMounts.forEach((mount, i) => {
+        const prefix = i === result.networkMounts.length - 1 ? '└──' : '├──';
+        console.log(`${prefix} ${mount.path}: ${mount.type}`);
+      });
+    }
     console.log();
   }
 

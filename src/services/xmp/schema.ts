@@ -65,7 +65,15 @@ export type FileCategory =
   | 'ebook'
   | 'executable'
   | 'data'
-  | 'other';
+  | 'other'
+  // Extended categories for universal extraction
+  | 'email'       // .eml, .msg
+  | 'font'        // .ttf, .otf, .woff, .woff2
+  | 'model3d'     // .glb, .gltf, .obj, .fbx
+  | 'calendar'    // .ics, .vcs
+  | 'contact'     // .vcf
+  | 'geospatial'  // .gpx, .kml, .geojson
+  | 'subtitle';   // .srt, .vtt, .ass
 
 /**
  * Media type (for physical media)
