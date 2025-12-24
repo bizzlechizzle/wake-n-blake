@@ -14,7 +14,7 @@ import type { Manifest, ManifestEntry } from '../schemas/index.js';
 import { detectFileType, isSidecarFile, isSkippedFile } from './file-type/detector.js';
 import { writeSidecar } from './xmp/writer.js';
 import { detectSourceDevice, getSourceType } from './device/index.js';
-import { extractMetadata, cleanup as cleanupMetadata, exiftool, mergeCompanionMetadata, findCompanionSidecars, batchFindCompanionSidecars, shouldEmbedContent } from './metadata/index.js';
+import { extractMetadata, cleanup as cleanupMetadata, exiftool, guessit, audioQuality, chromaprint, mergeCompanionMetadata, findCompanionSidecars, batchFindCompanionSidecars, shouldEmbedContent } from './metadata/index.js';
 import { findRelatedFiles, isPrimaryFile, type RelatedFileGroup } from './related-files/index.js';
 import type { XmpSidecarData, CustodyEvent, ImportSourceDevice, SourceType, FileCategory } from './xmp/schema.js';
 import { SCHEMA_VERSION } from './xmp/schema.js';
@@ -58,7 +58,7 @@ export type ImportStatus =
   | 'paused'
   | 'failed';
 
-const VERSION = '0.1.1';
+const VERSION = '0.1.5';
 
 export interface ImportSession {
   id: string;
@@ -134,6 +134,9 @@ export interface ImportOptions {
   rename?: boolean;  // Rename files to BLAKE3-16 format
   batch?: string;  // Batch name for this import
   operator?: string;  // Operator name for custody events
+  guessit?: boolean;  // Parse filenames with guessit for TV/movie metadata
+  audioQuality?: boolean;  // Analyze audio quality (lossless/lossy, sample rate, bit depth)
+  fingerprint?: boolean;  // Generate acoustic fingerprint (Chromaprint)
 
   // Integration options for external apps (e.g., abandoned-archive)
   /**
@@ -183,6 +186,9 @@ export async function runImport(
     rename = false,
     batch,
     operator,
+    guessit: useGuessit = false,
+    audioQuality: useAudioQuality = false,
+    fingerprint: useFingerprint = false,
     // Integration options
     pathBuilder,
     existingHashes
@@ -731,6 +737,54 @@ export async function runImport(
               }
             } catch {
               // Raw metadata extraction is optional, continue without it
+            }
+          }
+
+          // Parse filename with guessit for TV/movie metadata
+          if (useGuessit && category === 'video') {
+            try {
+              const guessitResult = await guessit.guess(file.path);
+              if (guessitResult) {
+                const guessitMeta = guessit.toRawMetadata(guessitResult);
+                sidecarData.rawMetadata = {
+                  ...sidecarData.rawMetadata,
+                  ...guessitMeta,
+                };
+              }
+            } catch {
+              // guessit is optional, continue without it
+            }
+          }
+
+          // Analyze audio quality (lossless/lossy detection, sample rate, bit depth)
+          if (useAudioQuality && category === 'audio') {
+            try {
+              const qualityResult = await audioQuality.analyzeAudioQuality(file.destPath);
+              if (qualityResult) {
+                const qualityMeta = audioQuality.toRawMetadata(qualityResult);
+                sidecarData.rawMetadata = {
+                  ...sidecarData.rawMetadata,
+                  ...qualityMeta,
+                };
+              }
+            } catch {
+              // audio quality analysis is optional, continue without it
+            }
+          }
+
+          // Generate acoustic fingerprint (Chromaprint) for audio files
+          if (useFingerprint && category === 'audio') {
+            try {
+              const fingerprintResult = await chromaprint.fingerprint(file.destPath);
+              if (fingerprintResult) {
+                const fingerprintMeta = chromaprint.toRawMetadata(fingerprintResult);
+                sidecarData.rawMetadata = {
+                  ...sidecarData.rawMetadata,
+                  ...fingerprintMeta,
+                };
+              }
+            } catch {
+              // fingerprinting is optional, continue without it
             }
           }
 

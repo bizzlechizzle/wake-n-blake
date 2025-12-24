@@ -23,6 +23,9 @@ export const importCommand = new Command('import')
   .option('--rename', 'Rename files to BLAKE3-16 format')
   .option('--batch <name>', 'Batch name for this import')
   .option('--operator <name>', 'Operator name for custody events')
+  .option('--guessit', 'Parse filenames with guessit for TV/movie metadata')
+  .option('--audio-quality', 'Analyze audio quality (lossless/lossy detection, sample rate, bit depth)')
+  .option('--fingerprint', 'Generate acoustic fingerprint (Chromaprint) for audio files')
   .option('-f, --format <fmt>', 'Output format: text, json', 'text')
   .option('-q, --quiet', 'Minimal output')
   .action(async (source: string, destination: string, options) => {
@@ -58,6 +61,9 @@ export const importCommand = new Command('import')
         rename: options.rename,
         batch: options.batch,
         operator: options.operator,
+        guessit: options.guessit,
+        audioQuality: options.audioQuality,
+        fingerprint: options.fingerprint,
         onProgress: (s) => {
           if (!options.quiet && s.status !== lastStatus) {
             lastStatus = s.status;

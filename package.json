@@ -1,6 +1,6 @@
 {
   "name": "wake-n-blake",
-  "version": "0.1.2",
+  "version": "0.1.5",
   "description": "Universal BLAKE3 hashing, verification, and ID generation CLI",
   "type": "module",
   "main": "dist/index.js",

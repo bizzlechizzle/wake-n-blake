@@ -16,6 +16,9 @@ import type {
 import * as exiftool from './wrappers/exiftool.js';
 import * as ffprobe from './wrappers/ffprobe.js';
 import * as mediainfo from './wrappers/mediainfo.js';
+import * as guessit from './wrappers/guessit.js';
+import * as audioQuality from './wrappers/audio-quality.js';
+import * as chromaprint from './wrappers/chromaprint.js';
 
 /**
  * Combined metadata result
@@ -288,16 +291,22 @@ export async function getAvailableTools(): Promise<{
   exiftool: boolean;
   mediainfo: boolean;
   ffprobe: boolean;
+  guessit: boolean;
+  chromaprint: boolean;
 }> {
-  const [mediainfoAvail, ffprobeAvail] = await Promise.all([
+  const [mediainfoAvail, ffprobeAvail, guessitAvail, chromaprintAvail] = await Promise.all([
     mediainfo.isMediaInfoAvailable(),
     ffprobe.isFFProbeAvailable(),
+    guessit.isGuessitAvailable(),
+    chromaprint.isChromaprintAvailable(),
   ]);
 
   return {
     exiftool: true, // exiftool-vendored bundles ExifTool
     mediainfo: mediainfoAvail,
     ffprobe: ffprobeAvail,
+    guessit: guessitAvail,
+    chromaprint: chromaprintAvail,
   };
 }
 
@@ -315,7 +324,7 @@ export async function cleanup(): Promise<void> {
 export const writeFullMetadataJson = exiftool.writeFullMetadataJson;
 
 // Re-export individual extractors for direct access
-export { exiftool, ffprobe, mediainfo };
+export { exiftool, ffprobe, mediainfo, guessit, audioQuality, chromaprint };
 
 // Re-export companion sidecar functions
 export const mergeCompanionMetadata = exiftool.mergeCompanionMetadata;

@@ -4,7 +4,7 @@ Universal BLAKE3 hashing, verification, and file provenance CLI for professional
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org)
-[![Version](https://img.shields.io/badge/version-0.1.2-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-0.1.5-blue.svg)](package.json)
 
 ## Features
 
@@ -15,6 +15,9 @@ Universal BLAKE3 hashing, verification, and file provenance CLI for professional
 - **Camera fingerprinting**: 9,766+ camera signatures for identification from EXIF, filenames, folders
 - **GPS enrichment**: Match photos/videos to GPS tracks (KML, GPX, GeoJSON)
 - **Perceptual hashing**: Find similar images with dHash/aHash/pHash
+- **Audio analysis**: Quality classification (lossless/lossy), transcode detection, sample rate/bit depth
+- **Acoustic fingerprinting**: Chromaprint integration for audio identification
+- **Video metadata parsing**: guessit integration for TV/movie filename parsing
 - **Extension learning**: Dynamic file type categorization with user feedback loop
 - **400+ media types**: Comprehensive coverage of image, video, audio, RAW, sidecar, ebook, game, archive formats
 - **Network-aware**: Optimized for SMB/NFS with automatic retry logic
@@ -31,14 +34,38 @@ npm install -g wake-n-blake
 npm install wake-n-blake
 ```
 
-### Optional: Native BLAKE3 (2-5x faster)
+### Optional Dependencies
 
+**Native BLAKE3 (2-5x faster):**
 ```bash
 # macOS
 brew install b3sum
 
 # Linux
 cargo install b3sum
+```
+
+**Audio Quality Analysis (requires ffprobe):**
+```bash
+# macOS
+brew install ffmpeg
+
+# Linux
+apt install ffmpeg
+```
+
+**Acoustic Fingerprinting (requires Chromaprint):**
+```bash
+# macOS
+brew install chromaprint
+
+# Linux
+apt install libchromaprint-tools
+```
+
+**Video Filename Parsing (requires guessit):**
+```bash
+pip install guessit
 ```
 
 ## Quick Start
@@ -240,12 +267,23 @@ Options:
   --rename                Rename with hash
   --batch <name>          Batch identifier
   --operator <name>       Operator name
+  --guessit               Parse video filenames with guessit (TV/movie metadata)
+  --audio-quality         Analyze audio quality (lossless/lossy, sample rate, bit depth)
+  --fingerprint           Generate Chromaprint acoustic fingerprint for audio files
 
 Examples:
   # Full provenance import from camera card
   wnb import /Volumes/DCIM /archive \
     --sidecar --detect-device --extract-meta \
     --batch "Wedding 2024" --operator "John Doe"
+
+  # Import with audio analysis
+  wnb import /music /archive \
+    --sidecar --audio-quality --fingerprint
+
+  # Import with guessit for TV shows
+  wnb import /downloads /media \
+    --sidecar --guessit
 
   # Quick import with deduplication
   wnb import /source /dest --dedup --manifest
@@ -451,8 +489,9 @@ import {
   // Device Detection
   detectSourceDevice, getRemovableVolumes,
 
-  // Metadata
-  extractMetadata,
+  // Metadata & Audio Analysis
+  extractMetadata, getAvailableTools,
+  audioQuality, chromaprint, guessit,
 
   // Professional Formats
   generateMhl, writeMhl, verifyMhl,
@@ -480,6 +519,27 @@ const session = await runImport('/source', '/dest', {
   extractMeta: true,
   onProgress: (s) => console.log(`${s.processedFiles}/${s.totalFiles}`),
 });
+
+// Check available tools
+const tools = await getAvailableTools();
+console.log(tools); // { exiftool: true, ffprobe: true, chromaprint: false, ... }
+
+// Analyze audio quality
+const quality = await audioQuality.analyzeAudioQuality('/music/song.flac');
+console.log(quality.classification); // 'lossless'
+console.log(quality.sampleRate);     // 44100
+console.log(quality.bitDepth);       // 16
+
+// Generate acoustic fingerprint
+const fp = await chromaprint.fingerprint('/music/song.flac');
+console.log(fp.fingerprint); // 'AQADtMk...'
+console.log(fp.duration);    // 180.5
+
+// Parse video filename
+const parsed = await guessit.guess('Breaking.Bad.S01E02.720p.BluRay.mkv');
+console.log(parsed.title);   // 'Breaking Bad'
+console.log(parsed.season);  // 1
+console.log(parsed.episode); // 2
 ```
 
 See [DEVELOPMENT.md](DEVELOPMENT.md) for full API documentation.
