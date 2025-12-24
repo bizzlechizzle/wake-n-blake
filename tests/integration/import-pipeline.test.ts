@@ -318,4 +318,119 @@ describe('Import Pipeline', () => {
       expect(session.files[0].relativePath).toBe('include.txt');
     });
   });
+
+  describe('Custom Path Builder', () => {
+    it('should use pathBuilder for destination paths', async () => {
+      await fs.writeFile(path.join(sourceDir, 'photo.jpg'), 'test content');
+
+      const customDir = path.join(destDir, 'custom', 'structure');
+
+      const session = await runImport(sourceDir, destDir, {
+        pathBuilder: (file, hash) => {
+          const ext = path.extname(file.path);
+          return path.join(customDir, `${hash}${ext}`);
+        }
+      });
+
+      expect(session.status).toBe('completed');
+      expect(session.processedFiles).toBe(1);
+
+      // File should be at custom path with hash-based name
+      const file = session.files[0];
+      expect(file.destPath).toContain('custom/structure');
+      expect(file.destPath).toMatch(/[a-f0-9]{16}\.jpg$/);
+
+      // Verify file exists at custom location
+      const fileExists = await fs.access(file.destPath!)
+        .then(() => true).catch(() => false);
+      expect(fileExists).toBe(true);
+    });
+
+    it('should create directories for custom paths', async () => {
+      await fs.writeFile(path.join(sourceDir, 'file.txt'), 'content');
+
+      const deepPath = path.join(destDir, 'deep', 'nested', 'path');
+
+      const session = await runImport(sourceDir, destDir, {
+        pathBuilder: (file, hash) => path.join(deepPath, `${hash}.txt`)
+      });
+
+      expect(session.status).toBe('completed');
+
+      const dirExists = await fs.access(deepPath)
+        .then(() => true).catch(() => false);
+      expect(dirExists).toBe(true);
+    });
+  });
+
+  describe('External Hash Dedup (existingHashes)', () => {
+    it('should skip files matching existingHashes', async () => {
+      // Create test file
+      await fs.writeFile(path.join(sourceDir, 'test.txt'), 'known content');
+
+      // First import to get the hash
+      const firstSession = await runImport(sourceDir, destDir);
+      const knownHash = firstSession.files[0].hash!;
+
+      // Clean destination
+      await fs.rm(destDir, { recursive: true, force: true });
+
+      // Second source file with same content
+      await fs.writeFile(path.join(sourceDir, 'duplicate.txt'), 'known content');
+
+      // Import with existingHashes (simulating database lookup)
+      const session = await runImport(sourceDir, destDir, {
+        existingHashes: new Set([knownHash])
+      });
+
+      expect(session.duplicateFiles).toBe(2); // Both files have the known hash
+    });
+
+    it('should use existingHashes instead of scanning destination', async () => {
+      // Pre-populate destination with a file
+      await fs.mkdir(destDir, { recursive: true });
+      await fs.writeFile(path.join(destDir, 'existing.txt'), 'existing');
+
+      // Create source file with different content
+      await fs.writeFile(path.join(sourceDir, 'new.txt'), 'new content');
+
+      // Provide empty existingHashes - should NOT scan destination
+      // This means even though 'existing.txt' is in destination, it won't be deduped
+      const session = await runImport(sourceDir, destDir, {
+        dedup: true,
+        existingHashes: new Set() // Empty set = no known hashes
+      });
+
+      // Should process the new file since existingHashes is empty
+      expect(session.duplicateFiles).toBe(0);
+      expect(session.processedFiles).toBe(1);
+    });
+
+    it('should prioritize existingHashes over destination scan', async () => {
+      // Create a file in destination with known hash
+      await fs.mkdir(destDir, { recursive: true });
+      await fs.writeFile(path.join(destDir, 'existing.txt'), 'same content');
+
+      // Get hash of the content
+      const { runImport: ri } = await import('../../src/services/importer.js');
+      const tempSource = path.join(tempDir, 'temp_source');
+      await fs.mkdir(tempSource, { recursive: true });
+      await fs.writeFile(path.join(tempSource, 'temp.txt'), 'same content');
+      const tempDest = path.join(tempDir, 'temp_dest');
+      const tempSession = await ri(tempSource, tempDest);
+      const contentHash = tempSession.files[0].hash!;
+
+      // Source file with same content
+      await fs.writeFile(path.join(sourceDir, 'source.txt'), 'same content');
+
+      // Import WITH existingHashes containing the hash
+      const session = await runImport(sourceDir, destDir, {
+        existingHashes: new Set([contentHash])
+      });
+
+      // File should be skipped because hash is in existingHashes
+      expect(session.duplicateFiles).toBe(1);
+      expect(session.processedFiles).toBe(0);
+    });
+  });
 });

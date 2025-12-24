@@ -134,6 +134,27 @@ export interface ImportOptions {
   rename?: boolean;  // Rename files to BLAKE3-16 format
   batch?: string;  // Batch name for this import
   operator?: string;  // Operator name for custody events
+
+  // Integration options for external apps (e.g., abandoned-archive)
+  /**
+   * Custom path builder for destination files.
+   * If provided, overrides default relative path preservation.
+   * Receives the file state and computed hash, returns the full destination path.
+   *
+   * Example (location-based archive):
+   *   pathBuilder: (file, hash) => `/archive/locations/CA/loc123/data/images/${hash}${path.extname(file.path)}`
+   */
+  pathBuilder?: (file: ImportFileState, hash: string) => string;
+
+  /**
+   * Pre-existing hashes to skip (for dedup against external database).
+   * If provided and dedup is true, these hashes are checked INSTEAD of scanning destination.
+   * This is faster for large archives where DB lookup beats full directory hash scan.
+   *
+   * Example (from SQLite):
+   *   existingHashes: new Set(await db.selectFrom('imgs').select('imghash').execute().map(r => r.imghash))
+   */
+  existingHashes?: Set<string>;
 }
 
 const CHECKPOINT_FILE = '.wnb-import-session.json';
@@ -161,7 +182,10 @@ export async function runImport(
     extractMeta = false,
     rename = false,
     batch,
-    operator
+    operator,
+    // Integration options
+    pathBuilder,
+    existingHashes
   } = options;
 
   const resolvedSource = path.resolve(source);
@@ -282,17 +306,24 @@ export async function runImport(
     session.status = 'hashing';
     onProgress?.(session);
 
-    const existingHashes = new Set<string>();
+    // Collect existing hashes for dedup
+    // Priority: 1) User-provided existingHashes (from DB), 2) Scan destination
+    let knownHashes: Set<string>;
 
-    // If dedup, first scan destination for existing hashes
-    if (dedup) {
+    if (existingHashes) {
+      // Use externally-provided hashes (e.g., from SQLite database)
+      // This is much faster for large archives than scanning destination
+      knownHashes = existingHashes;
+    } else if (dedup) {
+      // Fall back to scanning destination for existing hashes
+      knownHashes = new Set<string>();
       try {
         const destScan = await scanDirectory(resolvedDest, { recursive: true });
         for (const destFile of destScan.files) {
           if (destFile.endsWith(CHECKPOINT_FILE)) continue;
           try {
             const result = await hashFile(destFile, 'blake3-full');
-            existingHashes.add(result.hash);
+            knownHashes.add(result.hash);
           } catch {
             // Skip files we can't hash
           }
@@ -300,6 +331,8 @@ export async function runImport(
       } catch {
         // Destination might not exist yet
       }
+    } else {
+      knownHashes = new Set<string>();
     }
 
     for (const file of session.files) {
@@ -311,13 +344,13 @@ export async function runImport(
         file.hashShort = result.hash.slice(0, 16);  // 16-char for filename
         file.status = 'hashed';
 
-        // Check for duplicate
-        if (dedup && existingHashes.has(result.hash)) {
+        // Check for duplicate (using knownHashes which may be from DB or destination scan)
+        if ((dedup || existingHashes) && knownHashes.has(result.hash)) {
           file.status = 'skipped';
           session.duplicateFiles++;
           onFile?.(file, 'skip-duplicate');
         } else {
-          existingHashes.add(result.hash);
+          knownHashes.add(result.hash);
         }
 
         onFile?.(file, 'hashed');
@@ -346,7 +379,12 @@ export async function runImport(
     for (const file of session.files) {
       if (file.status !== 'hashed') continue;
 
-      const destPath = path.join(resolvedDest, file.relativePath);
+      // Determine destination path:
+      // 1) Use pathBuilder if provided (custom path structure)
+      // 2) Otherwise, preserve relative path structure
+      const destPath = pathBuilder
+        ? pathBuilder(file, file.hashShort || file.hash!.slice(0, 16))
+        : path.join(resolvedDest, file.relativePath);
       file.destPath = destPath;
 
       if (dryRun) {
@@ -358,6 +396,9 @@ export async function runImport(
       }
 
       try {
+        // Ensure destination directory exists (especially important for pathBuilder)
+        await fs.mkdir(path.dirname(destPath), { recursive: true });
+
         await copyWithHash(file.path, destPath, {
           algorithm: 'blake3',
           verify,

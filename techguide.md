@@ -1750,10 +1750,91 @@ await registry.syncFromRemote();
 
 ---
 
+## Programmatic API
+
+### runImport() Options
+
+The `runImport()` function is the core import pipeline that can be called programmatically:
+
+```typescript
+import { runImport } from 'wake-n-blake';
+
+const session = await runImport(source, destination, options);
+```
+
+#### Integration Options (v0.1.3+)
+
+For external apps like Abandoned Archive that need custom behavior:
+
+```typescript
+interface ImportOptions {
+  // ... standard options ...
+
+  /**
+   * Custom path builder for destination files.
+   * If provided, overrides default relative path preservation.
+   * Receives the file state and computed hash, returns the full destination path.
+   */
+  pathBuilder?: (file: ImportFileState, hash: string) => string;
+
+  /**
+   * Pre-existing hashes to skip (for dedup against external database).
+   * If provided and dedup is true, these hashes are checked INSTEAD of scanning destination.
+   * This is faster for large archives where DB lookup beats full directory hash scan.
+   */
+  existingHashes?: Set<string>;
+}
+```
+
+#### Example: Abandoned Archive Integration
+
+```typescript
+import { runImport } from 'wake-n-blake';
+import path from 'node:path';
+
+// Get existing hashes from database (much faster than scanning)
+const existingHashes = new Set(
+  await db.selectFrom('imgs').select('imghash').execute().map(r => r.imghash)
+);
+
+const session = await runImport(sourcePath, archivePath, {
+  // Core options
+  sidecar: true,
+  detectDevice: true,
+  extractMeta: true,
+  verify: true,
+
+  // Custom path builder for location-based folder structure
+  pathBuilder: (file, hash) => {
+    const ext = path.extname(file.path);
+    const mediaType = file.category === 'video' ? 'org-video' : 'org-images';
+    return path.join(archivePath, 'locations', state, locid, 'data', mediaType, `${hash}${ext}`);
+  },
+
+  // Use database for dedup (faster than scanning destination)
+  existingHashes,
+
+  // Callbacks for integration
+  onFile: async (file, action) => {
+    if (action === 'validated') {
+      // Insert into database from XMP sidecar
+      await xmpMapper.mapXmpToDatabase(file.sidecarPath, locid);
+      // Queue thumbnail job
+      await jobQueue.add('thumbnail', { path: file.destPath });
+    }
+  }
+});
+```
+
+This reduces the entire import pipeline to a single `runImport()` call with ~15 lines of integration code.
+
+---
+
 ## Version History
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 0.1.3 | 2025-12-23 | Added `pathBuilder` and `existingHashes` options for external app integration |
 | 0.6.0 | 2025-12-23 | Camera fingerprinting (9,766 cameras), extension learning, USB vendors, storage patterns, XML sidecar parsing, shared registry, XMP schema v3 |
 | 0.5.0 | 2025-12-22 | Full test suite (96 tests), XMP hash validation fix, case-insensitive file matching |
 | 0.4.0 | 2025-12-22 | Added `wnb meta`, metadata extraction stack (ExifTool, MediaInfo, ffprobe, etc.) |
