@@ -96,26 +96,31 @@ export async function findRelatedFiles(
   const groups: RelatedFileGroup[] = [];
   const processed = new Set<string>();
 
-  // Build lookup maps
+  // OPTIMIZATION: Pre-parse all paths once, reuse throughout
+  const parsedPaths = new Map<string, ParsedPath>();
+  for (const file of files) {
+    parsedPaths.set(file, parsePath(file));
+  }
+
+  // Build lookup maps using pre-parsed paths
   const byBasename = new Map<string, string[]>();
   const byDir = new Map<string, string[]>();
 
   for (const file of files) {
-    const dir = path.dirname(file);
-    const base = getBasename(file);
+    const parsed = parsedPaths.get(file)!;
 
     // Group by base name (without extension), case-insensitive
-    const baseKey = path.join(dir, base.toLowerCase());
+    const baseKey = path.join(parsed.dir, parsed.baseLower);
     if (!byBasename.has(baseKey)) {
       byBasename.set(baseKey, []);
     }
     byBasename.get(baseKey)!.push(file);
 
     // Group by directory
-    if (!byDir.has(dir)) {
-      byDir.set(dir, []);
+    if (!byDir.has(parsed.dir)) {
+      byDir.set(parsed.dir, []);
     }
-    byDir.get(dir)!.push(file);
+    byDir.get(parsed.dir)!.push(file);
   }
 
   // Find Live Photo pairs
@@ -173,6 +178,32 @@ export async function findRelatedFiles(
   }
 
   return groups;
+}
+
+/**
+ * OPTIMIZATION: Pre-parsed path structure to avoid repeated path.basename/extname calls
+ */
+interface ParsedPath {
+  full: string;      // Original full path
+  dir: string;       // Directory
+  base: string;      // Filename without extension
+  ext: string;       // Extension with dot
+  baseLower: string; // Lowercase base for case-insensitive matching
+}
+
+/**
+ * OPTIMIZATION: Parse a path once, reuse throughout detection
+ */
+function parsePath(file: string): ParsedPath {
+  const ext = path.extname(file);
+  const base = path.basename(file, ext);
+  return {
+    full: file,
+    dir: path.dirname(file),
+    base,
+    ext,
+    baseLower: base.toLowerCase(),
+  };
 }
 
 /**
@@ -371,10 +402,17 @@ async function detectBurstSequences(files: string[]): Promise<RelatedFileGroup[]
 /**
  * Detect HDR+SDR pairs
  * iOS creates _SDR.HEIC versions when exporting HDR
+ * OPTIMIZATION: Uses Map lookup O(1) instead of find() O(n)
  */
 function detectHdrSdrPairs(files: string[]): RelatedFileGroup[] {
   const groups: RelatedFileGroup[] = [];
   const processed = new Set<string>();
+
+  // OPTIMIZATION: Build basename->path Map for O(1) lookup
+  const basenameToPath = new Map<string, string>();
+  for (const file of files) {
+    basenameToPath.set(path.basename(file), file);
+  }
 
   for (const file of files) {
     if (processed.has(file)) continue;
@@ -384,7 +422,8 @@ function detectHdrSdrPairs(files: string[]): RelatedFileGroup[] {
     // Check for SDR suffix
     if (name.includes('_SDR.')) {
       const hdrName = name.replace('_SDR.', '.');
-      const hdrFile = files.find(f => path.basename(f) === hdrName);
+      // OPTIMIZATION: O(1) Map lookup instead of O(n) find()
+      const hdrFile = basenameToPath.get(hdrName);
 
       if (hdrFile && !processed.has(hdrFile)) {
         groups.push({

@@ -4,7 +4,7 @@ Universal BLAKE3 hashing, verification, and file provenance CLI for professional
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org)
-[![Version](https://img.shields.io/badge/version-0.1.0-blue.svg)](package.json)
+[![Version](https://img.shields.io/badge/version-0.1.2-blue.svg)](package.json)
 
 ## Features
 

@@ -94,6 +94,17 @@ interface CameraDatabase {
   cameras: CameraSignature[];
 }
 
+/**
+ * OPTIMIZATION: Pre-compiled pattern matcher for filename/folder matching
+ */
+interface CompiledPatternCamera {
+  camera: CameraSignature;
+  patterns: Array<{
+    pattern: string;
+    matcher: (str: string) => boolean;
+  }>;
+}
+
 // Build indexes for fast lookup
 interface CameraIndex {
   byMake: Map<string, CameraSignature[]>;        // lowercase make -> cameras
@@ -101,6 +112,9 @@ interface CameraIndex {
   byMakeModel: Map<string, CameraSignature>;     // "make|model" -> camera
   withFilenamePatterns: CameraSignature[];
   withFolderPatterns: CameraSignature[];
+  // OPTIMIZATION: Pre-compiled pattern matchers
+  compiledFilenamePatterns: CompiledPatternCamera[];
+  compiledFolderPatterns: CompiledPatternCamera[];
 }
 
 // =============================================================================
@@ -333,10 +347,11 @@ export class CameraFingerprinter {
   private matchFilename(filename: string): CameraSignature | null {
     if (!this.index) return null;
 
-    for (const camera of this.index.withFilenamePatterns) {
-      for (const pattern of camera.matching.filename_patterns || []) {
-        if (this.matchPattern(filename, pattern)) {
-          return camera;
+    // OPTIMIZATION: Use pre-compiled pattern matchers
+    for (const compiled of this.index.compiledFilenamePatterns) {
+      for (const { matcher } of compiled.patterns) {
+        if (matcher(filename)) {
+          return compiled.camera;
         }
       }
     }
@@ -349,17 +364,19 @@ export class CameraFingerprinter {
     const folderName = path.basename(folderPath);
     const fullPath = folderPath.toLowerCase();
 
-    for (const camera of this.index.withFolderPatterns) {
-      for (const pattern of camera.matching.folder_patterns || []) {
-        if (this.matchPattern(folderName, pattern) ||
+    // OPTIMIZATION: Use pre-compiled pattern matchers
+    for (const compiled of this.index.compiledFolderPatterns) {
+      for (const { pattern, matcher } of compiled.patterns) {
+        if (matcher(folderName) ||
             fullPath.includes(pattern.toLowerCase().replace(/\*/g, ''))) {
-          return camera;
+          return compiled.camera;
         }
       }
     }
     return null;
   }
 
+  // Kept for backward compatibility but no longer used in hot path
   private matchPattern(str: string, pattern: string): boolean {
     if (pattern.includes('*') || pattern.includes('?') || pattern.includes('[')) {
       return minimatch(str, pattern, { nocase: true });
@@ -421,6 +438,8 @@ export class CameraFingerprinter {
       byMakeModel: new Map(),
       withFilenamePatterns: [],
       withFolderPatterns: [],
+      compiledFilenamePatterns: [],
+      compiledFolderPatterns: [],
     };
 
     for (const camera of allCameras) {
@@ -448,14 +467,44 @@ export class CameraFingerprinter {
         }
       }
 
-      // Index patterns
+      // Index patterns (for backward compatibility)
       if (camera.matching.filename_patterns?.length) {
         this.index.withFilenamePatterns.push(camera);
+        // OPTIMIZATION: Pre-compile filename patterns at load time
+        this.index.compiledFilenamePatterns.push({
+          camera,
+          patterns: camera.matching.filename_patterns.map(pattern => ({
+            pattern,
+            matcher: this.compilePattern(pattern),
+          })),
+        });
       }
       if (camera.matching.folder_patterns?.length) {
         this.index.withFolderPatterns.push(camera);
+        // OPTIMIZATION: Pre-compile folder patterns at load time
+        this.index.compiledFolderPatterns.push({
+          camera,
+          patterns: camera.matching.folder_patterns.map(pattern => ({
+            pattern,
+            matcher: this.compilePattern(pattern),
+          })),
+        });
       }
     }
+  }
+
+  /**
+   * OPTIMIZATION: Compile a pattern once into a reusable matcher function
+   */
+  private compilePattern(pattern: string): (str: string) => boolean {
+    if (pattern.includes('*') || pattern.includes('?') || pattern.includes('[')) {
+      // Pre-create a Minimatch instance for glob patterns
+      const mm = new minimatch.Minimatch(pattern, { nocase: true });
+      return (str: string) => mm.match(str);
+    }
+    // Simple substring match
+    const lowerPattern = pattern.toLowerCase();
+    return (str: string) => str.toLowerCase().includes(lowerPattern);
   }
 
   private rebuildIndex(): void {

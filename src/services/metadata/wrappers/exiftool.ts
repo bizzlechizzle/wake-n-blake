@@ -359,7 +359,7 @@ function parseKeywords(value: unknown): string[] | undefined {
  * Companion sidecar extensions that may contain metadata for media files.
  * Ordered by priority (first match wins for conflicting fields).
  */
-const COMPANION_SIDECAR_EXTENSIONS = [
+export const COMPANION_SIDECAR_EXTENSIONS = [
   // Telemetry
   '.srt',      // DJI drone telemetry (GPS, camera settings per frame)
   '.lrf',      // DJI low-res flyback proxy video
@@ -392,6 +392,12 @@ const COMPANION_SIDECAR_EXTENSIONS = [
  * Sony uses suffixes like M01.XML for metadata clips.
  */
 const _SONY_XML_SUFFIXES = ['M01.XML', 'M01.xml', 'C01.XML', 'C01.xml'];
+
+/**
+ * OPTIMIZATION: Module-level Set for O(1) sidecar extension lookup
+ * Created once at module load, not per function call
+ */
+const SIDECAR_EXT_SET = new Set(COMPANION_SIDECAR_EXTENSIONS.map(e => e.toLowerCase()));
 
 /**
  * Video extensions that commonly have companion sidecars
@@ -497,8 +503,8 @@ export async function findCompanionSidecars(filePath: string): Promise<string[]>
   const baseLower = base.toLowerCase();
   const primaryFileName = path.basename(filePath);
 
-  // Convert sidecar extensions to a Set for O(1) lookup
-  const sidecarExtSet = new Set(COMPANION_SIDECAR_EXTENSIONS.map(e => e.toLowerCase()));
+  // OPTIMIZATION: Use module-level Set for O(1) lookup (created once, not per call)
+  const sidecarExtSet = SIDECAR_EXT_SET;
 
   for (const file of dirContents) {
     // Skip the primary file itself
@@ -526,6 +532,70 @@ export async function findCompanionSidecars(filePath: string): Promise<string[]>
   }
 
   return companions;
+}
+
+/**
+ * OPTIMIZATION: Batch discover companion sidecars for multiple files.
+ * Reads each directory only once, caching the listing for all files in that directory.
+ * Returns a Map from primary file path to its companion sidecar paths.
+ */
+export async function batchFindCompanionSidecars(
+  filePaths: string[]
+): Promise<Map<string, string[]>> {
+  const result = new Map<string, string[]>();
+  const dirCache = new Map<string, string[]>();
+
+  for (const filePath of filePaths) {
+    const dir = path.dirname(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+    const base = path.basename(filePath, path.extname(filePath));
+
+    // Only look for companions for media files that commonly have them
+    if (!VIDEO_WITH_SIDECAR_EXTENSIONS.has(ext) && !PHOTO_WITH_SIDECAR_EXTENSIONS.has(ext)) {
+      result.set(filePath, []);
+      continue;
+    }
+
+    // OPTIMIZATION: Read directory only once per directory
+    if (!dirCache.has(dir)) {
+      try {
+        dirCache.set(dir, await fs.readdir(dir));
+      } catch {
+        dirCache.set(dir, []);
+      }
+    }
+
+    const dirContents = dirCache.get(dir)!;
+    const companions: string[] = [];
+    const baseLower = base.toLowerCase();
+    const primaryFileName = path.basename(filePath);
+
+    for (const file of dirContents) {
+      if (file === primaryFileName) continue;
+
+      const fileExt = path.extname(file).toLowerCase();
+      const fileBase = path.basename(file, path.extname(file));
+      const fileBaseLower = fileBase.toLowerCase();
+
+      // Standard same-basename matching (case-insensitive for FAT32)
+      if (fileBaseLower === baseLower && SIDECAR_EXT_SET.has(fileExt)) {
+        companions.push(path.join(dir, file));
+        continue;
+      }
+
+      // Sony professional camera suffix patterns
+      if (fileExt === '.xml') {
+        const sonyPattern = new RegExp(`^${escapeRegex(baseLower)}[mcs]0[1-9]$`, 'i');
+        if (sonyPattern.test(fileBaseLower)) {
+          companions.push(path.join(dir, file));
+        }
+      }
+    }
+
+    result.set(filePath, companions);
+  }
+
+  return result;
 }
 
 /**

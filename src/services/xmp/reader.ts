@@ -255,10 +255,25 @@ export function parseSidecarContent(content: string): ParseResult {
 }
 
 /**
+ * OPTIMIZATION: Module-level cache for compiled regex patterns
+ * Avoids recompiling the same regex ~150 times per sidecar parse
+ */
+const tagRegexCache = new Map<string, RegExp>();
+
+function getTagRegex(tagName: string): RegExp {
+  let regex = tagRegexCache.get(tagName);
+  if (!regex) {
+    regex = new RegExp(`<wnb:${tagName}>([^<]*)</wnb:${tagName}>`);
+    tagRegexCache.set(tagName, regex);
+  }
+  return regex;
+}
+
+/**
  * Extract a value from XMP content by tag name
  */
 function extractValue(content: string, tagName: string): string | undefined {
-  const regex = new RegExp(`<wnb:${tagName}>([^<]*)</wnb:${tagName}>`);
+  const regex = getTagRegex(tagName);
   const match = content.match(regex);
   return match ? unescapeXml(match[1]) : undefined;
 }
@@ -551,9 +566,10 @@ function parseCustodyChain(content: string): CustodyEvent[] {
 
 /**
  * Extract value from a content fragment
+ * OPTIMIZATION: Uses cached regex patterns
  */
 function extractValueFromContent(content: string, tagName: string): string | undefined {
-  const regex = new RegExp(`<wnb:${tagName}>([^<]*)</wnb:${tagName}>`);
+  const regex = getTagRegex(tagName);
   const match = content.match(regex);
   return match ? unescapeXml(match[1]) : undefined;
 }

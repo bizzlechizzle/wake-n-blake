@@ -14,8 +14,8 @@ import type { Manifest, ManifestEntry } from '../schemas/index.js';
 import { detectFileType, isSidecarFile, isSkippedFile } from './file-type/detector.js';
 import { writeSidecar } from './xmp/writer.js';
 import { detectSourceDevice, getSourceType } from './device/index.js';
-import { extractMetadata, cleanup as cleanupMetadata, exiftool, mergeCompanionMetadata, findCompanionSidecars, shouldEmbedContent } from './metadata/index.js';
-import { findRelatedFiles, isPrimaryFile } from './related-files/index.js';
+import { extractMetadata, cleanup as cleanupMetadata, exiftool, mergeCompanionMetadata, findCompanionSidecars, batchFindCompanionSidecars, shouldEmbedContent } from './metadata/index.js';
+import { findRelatedFiles, isPrimaryFile, type RelatedFileGroup } from './related-files/index.js';
 import type { XmpSidecarData, CustodyEvent, ImportSourceDevice, SourceType, FileCategory } from './xmp/schema.js';
 import { SCHEMA_VERSION } from './xmp/schema.js';
 
@@ -243,6 +243,16 @@ export async function runImport(
     session.status = 'detecting-related';
     onProgress?.(session);
 
+    // OPTIMIZATION: Find related files ONCE for all files, build O(1) lookup map
+    const allPaths = session.files.filter(f => f.status !== 'error').map(f => f.path);
+    const relatedGroups = await findRelatedFiles(allPaths);
+    const fileToGroup = new Map<string, RelatedFileGroup>();
+    for (const group of relatedGroups) {
+      for (const filePath of group.allFiles) {
+        fileToGroup.set(filePath, group);
+      }
+    }
+
     for (const file of session.files) {
       if (file.status === 'error') continue;
 
@@ -257,10 +267,8 @@ export async function runImport(
           continue;
         }
 
-        // Find related files (Live Photo pairs, RAW+JPEG, etc.)
-        const allPaths = session.files.map(f => f.path);
-        const relatedGroups = await findRelatedFiles(allPaths);
-        const myGroup = relatedGroups.find(g => g.allFiles.includes(file.path));
+        // OPTIMIZATION: O(1) lookup instead of O(n) search
+        const myGroup = fileToGroup.get(file.path);
         if (myGroup && myGroup.allFiles.length > 1) {
           file.relatedFiles = myGroup.allFiles.filter(p => p !== file.path);
           file.isPrimary = isPrimaryFile(file.path, relatedGroups);
@@ -330,6 +338,11 @@ export async function runImport(
     session.status = 'copying';
     onProgress?.(session);
 
+    // OPTIMIZATION: Batch discover companion sidecars ONCE before copy loop
+    // This reads each directory only once instead of once per file
+    const filesToCopy = session.files.filter(f => f.status === 'hashed').map(f => f.path);
+    const companionMap = await batchFindCompanionSidecars(filesToCopy);
+
     for (const file of session.files) {
       if (file.status !== 'hashed') continue;
 
@@ -359,7 +372,8 @@ export async function runImport(
         // Copy companion sidecars (e.g., .SRT, .MOI) alongside the primary file
         // This preserves full telemetry data that's too large to embed in XMP
         try {
-          const companionPaths = await findCompanionSidecars(file.path);
+          // OPTIMIZATION: Use pre-computed companion map instead of per-file discovery
+          const companionPaths = companionMap.get(file.path) || [];
           if (companionPaths.length > 0) {
             file.copiedCompanions = [];
             const destDir = path.dirname(destPath);
@@ -494,19 +508,32 @@ export async function runImport(
     }
 
     // Stage 6: Extract metadata
+    // OPTIMIZATION: Process in parallel batches (matches ExifTool maxProcs=4)
     if (extractMeta && !dryRun) {
       session.status = 'extracting-metadata';
       onProgress?.(session);
 
-      for (const file of session.files) {
-        if ((file.status !== 'validated' && file.status !== 'copied') || !file.destPath) continue;
+      const METADATA_BATCH_SIZE = 4;  // Match ExifTool maxProcs for optimal parallelism
+      const filesToExtract = session.files.filter(
+        f => (f.status === 'validated' || f.status === 'copied') && f.destPath
+      );
 
-        try {
-          const meta = await extractMetadata(file.destPath);
-          file.metadata = meta as unknown as Record<string, unknown>;
-          onFile?.(file, 'metadata-extracted');
-        } catch {
-          // Metadata extraction is optional, continue without it
+      for (let i = 0; i < filesToExtract.length; i += METADATA_BATCH_SIZE) {
+        const batch = filesToExtract.slice(i, i + METADATA_BATCH_SIZE);
+        const results = await Promise.allSettled(
+          batch.map(async (file) => {
+            const meta = await extractMetadata(file.destPath!);
+            return { file, meta };
+          })
+        );
+
+        // Process results
+        for (const result of results) {
+          if (result.status === 'fulfilled') {
+            result.value.file.metadata = result.value.meta as unknown as Record<string, unknown>;
+            onFile?.(result.value.file, 'metadata-extracted');
+          }
+          // Metadata extraction is optional, continue without it on failure
         }
       }
     }

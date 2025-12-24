@@ -489,6 +489,181 @@ npm version 0.1.1 --no-git-tag-version
 
 ---
 
+## Performance Optimizations
+
+Wake-n-Blake has been optimized for import performance with large file batches. Key optimizations:
+
+### Phase 1: O(1) Related Files Lookup
+
+**Problem**: `findRelatedFiles()` was called inside a loop, causing O(n²) complexity.
+
+**Solution**: Build a Map upfront for O(1) lookups:
+
+```typescript
+// Before: O(n²)
+for (const file of files) {
+  const groups = await findRelatedFiles([file.path, ...otherPaths]);
+}
+
+// After: O(n) - build once, lookup O(1)
+const allPaths = session.files.map(f => f.path);
+const relatedGroups = await findRelatedFiles(allPaths);
+const fileToGroup = new Map<string, RelatedFileGroup>();
+for (const group of relatedGroups) {
+  for (const filePath of group.allFiles) {
+    fileToGroup.set(filePath, group);
+  }
+}
+// Inside loop: const group = fileToGroup.get(file.path);
+```
+
+**Location**: `src/services/importer.ts:174-189`
+
+### Phase 2: Batch Companion Sidecar Discovery
+
+**Problem**: Each file triggered a separate `fs.readdir()` for sidecar detection.
+
+**Solution**: Read each directory only once and cache results:
+
+```typescript
+export async function batchFindCompanionSidecars(
+  filePaths: string[]
+): Promise<Map<string, string[]>> {
+  const dirCache = new Map<string, string[]>();  // Read each dir once
+
+  for (const filePath of filePaths) {
+    const dir = path.dirname(filePath);
+    if (!dirCache.has(dir)) {
+      dirCache.set(dir, await fs.readdir(dir));
+    }
+    // Check cache for sidecars
+  }
+  return result;
+}
+```
+
+**Location**: `src/services/metadata/wrappers/exiftool.ts:85-130`
+
+### Phase 3: Parallel Metadata Extraction
+
+**Problem**: Sequential metadata extraction didn't leverage ExifTool's parallelism.
+
+**Solution**: Process files in parallel batches matching ExifTool's maxProcs (4):
+
+```typescript
+const METADATA_BATCH_SIZE = 4;  // Match exiftool-vendored maxProcs
+
+for (let i = 0; i < filesToExtract.length; i += METADATA_BATCH_SIZE) {
+  const batch = filesToExtract.slice(i, i + METADATA_BATCH_SIZE);
+  const results = await Promise.allSettled(
+    batch.map(async (file) => {
+      const meta = await extractMetadata(file.destPath!);
+      return { file, meta };
+    })
+  );
+  // Handle results...
+}
+```
+
+**Location**: `src/services/importer.ts:324-362`
+
+### Phase 4: File Copy Optimization (Skipped)
+
+Disk I/O bound - Phase 2's batch directory reads provide the main benefit.
+
+### Phase 5: XMP Regex Caching
+
+**Problem**: ~150 regex patterns compiled per XMP sidecar file.
+
+**Solution**: Cache compiled regexes at module level:
+
+```typescript
+const tagRegexCache = new Map<string, RegExp>();
+
+function getTagRegex(tagName: string): RegExp {
+  let regex = tagRegexCache.get(tagName);
+  if (!regex) {
+    regex = new RegExp(`<wnb:${tagName}>([^<]*)</wnb:${tagName}>`);
+    tagRegexCache.set(tagName, regex);
+  }
+  return regex;
+}
+```
+
+**Location**: `src/services/xmp/reader.ts:8-17`
+
+### Phase 6: Pre-Parsed Paths
+
+**Problem**: `path.basename()` and `path.extname()` called repeatedly per file.
+
+**Solution**: Parse once and store results:
+
+```typescript
+interface ParsedPath {
+  full: string;
+  dir: string;
+  base: string;
+  ext: string;
+  baseLower: string;
+}
+
+const parsedPaths = new Map<string, ParsedPath>();
+for (const file of files) {
+  parsedPaths.set(file, parsePath(file));
+}
+```
+
+**Location**: `src/services/related-files/index.ts:15-44`
+
+### Phase 7: Pre-Compiled Camera Patterns
+
+**Problem**: Glob patterns evaluated at match time for each file.
+
+**Solution**: Compile minimatch patterns at database load:
+
+```typescript
+private compilePattern(pattern: string): (str: string) => boolean {
+  if (pattern.includes('*') || pattern.includes('?') || pattern.includes('[')) {
+    const mm = new minimatch.Minimatch(pattern, { nocase: true });
+    return (str: string) => mm.match(str);
+  }
+  const lowerPattern = pattern.toLowerCase();
+  return (str: string) => str.toLowerCase().includes(lowerPattern);
+}
+```
+
+**Location**: `src/services/device/camera-fingerprint.ts:95-105`
+
+### Phase 8: Tool Availability Caching
+
+**Problem**: Shell commands to check tool availability repeated per file.
+
+**Solution**: Already cached at module level. Verified working.
+
+**Location**: `src/services/metadata/wrappers/exiftool.ts:21`
+
+### HDR/SDR Detection Map Lookup
+
+**Problem**: `Array.find()` for HDR/SDR matching was O(n).
+
+**Solution**: Use Map for O(1) lookups:
+
+```typescript
+// Before: O(n)
+const hdrFile = files.find(f => path.basename(f) === hdrName);
+
+// After: O(1)
+const basenameToPath = new Map<string, string>();
+for (const file of files) {
+  basenameToPath.set(path.basename(file), file);
+}
+const hdrFile = basenameToPath.get(hdrName);
+```
+
+**Location**: `src/services/related-files/index.ts:204-215`
+
+---
+
 ## Troubleshooting
 
 ### Common Issues

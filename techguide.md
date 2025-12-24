@@ -182,23 +182,26 @@ wake-n-blake/
 ```json
 {
   "dependencies": {
-    "blake3": "^3.0.0",
-    "commander": "^12.0.0",
-    "zod": "^3.23.0",
-    "p-queue": "^8.0.0",
-    "uuid": "^9.0.0",
+    "blake3": "^2.1.7",
+    "commander": "^12.1.0",
+    "zod": "^3.24.1",
+    "p-queue": "^8.0.1",
+    "uuid": "^11.0.3",
     "ulid": "^2.3.0",
-    "ignore": "^5.3.0",
-    "ora": "^8.0.0",
-    "file-type": "^19.0.0",
-    "exiftool-vendored": "^28.0.0"
+    "ignore": "^6.0.2",
+    "ora": "^8.1.1",
+    "file-type": "^19.6.0",
+    "exiftool-vendored": "^28.3.0",
+    "minimatch": "^9.0.0",
+    "sharp": "^0.33.5",
+    "xxhash-addon": "^2.0.3"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
-    "@types/uuid": "^9.0.0",
-    "typescript": "^5.4.0",
-    "vitest": "^1.0.0",
-    "tsx": "^4.0.0"
+    "@types/node": "^22.10.2",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8",
+    "tsx": "^4.19.2"
   }
 }
 ```
@@ -1056,12 +1059,13 @@ Options:
   --missing             Report files with no extractable metadata
 
 Tool Stack (by category):
-  Photo:     ExifTool → exiv2 → libraw → GDAL → ImageMagick
-  Video:     MediaInfo → ffprobe → ExifTool → MKVToolNix
-  Audio:     ExifTool → MediaInfo → mutagen → ffprobe → metaflac
-  Document:  ExifTool → Poppler → Apache Tika
-  Ebook:     ebook-meta (Calibre)
-  Verify:    file + libmagic → Siegfried
+  Photo:     ExifTool (bundled via exiftool-vendored)
+  Video:     ExifTool → MediaInfo (if available) → ffprobe (if available)
+  Audio:     ExifTool → ffprobe (if available)
+  Document:  ExifTool
+
+Note: MediaInfo and ffprobe are optional external tools that enhance metadata
+extraction when installed. ExifTool is always available (bundled).
 
 Examples:
   wnb meta photo.jpg                       # Extract photo metadata
@@ -1501,17 +1505,16 @@ npm run test:integration     # Integration tests (needs fixtures)
 - [x] Related file detection (Live Photo, RAW+JPEG)
 
 ### Phase 3b: Metadata Extraction Stack ✅
-- [x] ExifTool wrapper (via exiftool-vendored)
-- [x] ffprobe wrapper
-- [x] MediaInfo wrapper
-- [ ] exiv2 wrapper - Future
-- [ ] libraw wrapper - Future
-- [ ] Poppler wrapper - Future
-- [ ] Apache Tika wrapper - Future
-- [ ] mutagen wrapper - Future
-- [ ] Siegfried integration - Future
+- [x] ExifTool wrapper (via exiftool-vendored, bundled)
+- [x] ffprobe wrapper (optional, uses system ffprobe)
+- [x] MediaInfo wrapper (optional, uses system mediainfo)
 - [x] Category-based tool routing
 - [x] Metadata normalization to XMP
+
+**Available Extractors:**
+- ExifTool: Always available (bundled via exiftool-vendored)
+- ffprobe: Optional (detects if installed)
+- MediaInfo: Optional (detects if installed)
 
 ### Phase 4: Import Pipeline (Full) ✅
 - [x] BLAKE3-16 file renaming (--rename flag)
