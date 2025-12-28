@@ -16,6 +16,22 @@ import { getBufferSize } from '../utils/network.js';
 
 const execFileAsync = promisify(execFile);
 
+/**
+ * Progress callback for hash operations
+ * Fires per-chunk for smooth progress updates during large file hashing
+ */
+export type HashProgressCallback = (bytesProcessed: number, totalBytes: number) => void;
+
+/**
+ * Options for hash operations with progress
+ */
+export interface HashProgressOptions {
+  /** Callback fired per-chunk with bytes processed and total */
+  onProgress?: HashProgressCallback;
+  /** Total file size (required for progress, auto-detected if not provided) */
+  totalBytes?: number;
+}
+
 // Native b3sum search paths
 const B3SUM_PATHS = [
   process.env.WNB_NATIVE_B3SUM,
@@ -110,10 +126,12 @@ async function hashBlake3Native(
 
 /**
  * Calculate BLAKE3 hash using WASM
+ * Supports optional byte-level progress callback for smooth UI updates
  */
 async function hashBlake3Wasm(
   filePath: string,
-  truncate: number = 8
+  truncate: number = 8,
+  progressOptions?: HashProgressOptions
 ): Promise<string> {
   // Validate truncate parameter (same as native)
   if (!Number.isInteger(truncate) || truncate < 1 || truncate > 32) {
@@ -123,10 +141,23 @@ async function hashBlake3Wasm(
   const bufferSize = getBufferSize(filePath);
   const hasher = createBlake3Hash();
 
+  // Get total size for progress reporting
+  let totalBytes = progressOptions?.totalBytes;
+  if (progressOptions?.onProgress && totalBytes === undefined) {
+    const stats = await fsp.stat(filePath);
+    totalBytes = stats.size;
+  }
+
   const stream = fs.createReadStream(filePath, { highWaterMark: bufferSize });
+  let bytesProcessed = 0;
 
   for await (const chunk of stream) {
     hasher.update(chunk);
+    bytesProcessed += chunk.length;
+
+    if (progressOptions?.onProgress && totalBytes !== undefined) {
+      progressOptions.onProgress(bytesProcessed, totalBytes);
+    }
   }
 
   const fullHash = hasher.digest('hex');
@@ -134,20 +165,33 @@ async function hashBlake3Wasm(
 }
 
 /**
+ * Options for hashBlake3 function
+ */
+export interface HashBlake3Options extends HashProgressOptions {
+  /** Return full 64-char hash instead of 16-char */
+  full?: boolean;
+  /** Force WASM mode (skip native b3sum) */
+  forceWasm?: boolean;
+}
+
+/**
  * Calculate BLAKE3 hash (native with WASM fallback)
+ * When onProgress is provided, WASM mode is used for byte-level progress
  */
 export async function hashBlake3(
   filePath: string,
-  options: { full?: boolean; forceWasm?: boolean } = {}
+  options: HashBlake3Options = {}
 ): Promise<string> {
   const truncateBytes = options.full ? 32 : 8;
 
-  // Determine mode
-  const effectiveMode = options.forceWasm ? 'wasm' : hasherMode;
+  // Determine mode - if progress callback is requested, force WASM for per-chunk updates
+  // Native b3sum doesn't support streaming progress
+  const hasProgressCallback = options.onProgress !== undefined;
+  const effectiveMode = hasProgressCallback || options.forceWasm ? 'wasm' : hasherMode;
 
-  // Force WASM mode
+  // Force WASM mode (or required for progress)
   if (effectiveMode === 'wasm' || process.env.WNB_FORCE_WASM) {
-    return hashBlake3Wasm(filePath, truncateBytes);
+    return hashBlake3Wasm(filePath, truncateBytes, options);
   }
 
   // Force native mode (fail if not available)
@@ -163,106 +207,194 @@ export async function hashBlake3(
   try {
     return await hashBlake3Native(filePath, truncateBytes);
   } catch {
-    return hashBlake3Wasm(filePath, truncateBytes);
+    return hashBlake3Wasm(filePath, truncateBytes, options);
   }
 }
 
 /**
- * Calculate SHA-256 hash
+ * Calculate SHA-256 hash with optional progress callback
  */
-export async function hashSha256(filePath: string): Promise<string> {
+export async function hashSha256(
+  filePath: string,
+  progressOptions?: HashProgressOptions
+): Promise<string> {
   const bufferSize = getBufferSize(filePath);
   const hasher = crypto.createHash('sha256');
 
+  // Get total size for progress reporting
+  let totalBytes = progressOptions?.totalBytes;
+  if (progressOptions?.onProgress && totalBytes === undefined) {
+    const stats = await fsp.stat(filePath);
+    totalBytes = stats.size;
+  }
+
   const stream = fs.createReadStream(filePath, { highWaterMark: bufferSize });
+  let bytesProcessed = 0;
 
   for await (const chunk of stream) {
     hasher.update(chunk);
+    bytesProcessed += chunk.length;
+
+    if (progressOptions?.onProgress && totalBytes !== undefined) {
+      progressOptions.onProgress(bytesProcessed, totalBytes);
+    }
   }
 
   return hasher.digest('hex').toLowerCase();
 }
 
 /**
- * Calculate SHA-512 hash
+ * Calculate SHA-512 hash with optional progress callback
  */
-export async function hashSha512(filePath: string): Promise<string> {
+export async function hashSha512(
+  filePath: string,
+  progressOptions?: HashProgressOptions
+): Promise<string> {
   const bufferSize = getBufferSize(filePath);
   const hasher = crypto.createHash('sha512');
 
+  // Get total size for progress reporting
+  let totalBytes = progressOptions?.totalBytes;
+  if (progressOptions?.onProgress && totalBytes === undefined) {
+    const stats = await fsp.stat(filePath);
+    totalBytes = stats.size;
+  }
+
   const stream = fs.createReadStream(filePath, { highWaterMark: bufferSize });
+  let bytesProcessed = 0;
 
   for await (const chunk of stream) {
     hasher.update(chunk);
+    bytesProcessed += chunk.length;
+
+    if (progressOptions?.onProgress && totalBytes !== undefined) {
+      progressOptions.onProgress(bytesProcessed, totalBytes);
+    }
   }
 
   return hasher.digest('hex').toLowerCase();
 }
 
 /**
- * Calculate MD5 hash (legacy, for MHL compatibility)
+ * Calculate MD5 hash (legacy, for MHL compatibility) with optional progress callback
  */
-export async function hashMd5(filePath: string): Promise<string> {
+export async function hashMd5(
+  filePath: string,
+  progressOptions?: HashProgressOptions
+): Promise<string> {
   const bufferSize = getBufferSize(filePath);
   const hasher = crypto.createHash('md5');
 
+  // Get total size for progress reporting
+  let totalBytes = progressOptions?.totalBytes;
+  if (progressOptions?.onProgress && totalBytes === undefined) {
+    const stats = await fsp.stat(filePath);
+    totalBytes = stats.size;
+  }
+
   const stream = fs.createReadStream(filePath, { highWaterMark: bufferSize });
+  let bytesProcessed = 0;
 
   for await (const chunk of stream) {
     hasher.update(chunk);
+    bytesProcessed += chunk.length;
+
+    if (progressOptions?.onProgress && totalBytes !== undefined) {
+      progressOptions.onProgress(bytesProcessed, totalBytes);
+    }
   }
 
   return hasher.digest('hex').toLowerCase();
 }
 
 /**
- * Calculate xxHash64 hash (fast, for MHL compatibility)
+ * Calculate xxHash64 hash (fast, for MHL compatibility) with optional progress callback
  */
-export async function hashXxhash64(filePath: string): Promise<string> {
+export async function hashXxhash64(
+  filePath: string,
+  progressOptions?: HashProgressOptions
+): Promise<string> {
   const bufferSize = getBufferSize(filePath);
   // XXHash64 requires a seed buffer (8 bytes for 64-bit seed, use zeros)
   const seed = Buffer.alloc(8);
   const hasher = new XXHash64(seed);
 
+  // Get total size for progress reporting
+  let totalBytes = progressOptions?.totalBytes;
+  if (progressOptions?.onProgress && totalBytes === undefined) {
+    const stats = await fsp.stat(filePath);
+    totalBytes = stats.size;
+  }
+
   const stream = fs.createReadStream(filePath, { highWaterMark: bufferSize });
+  let bytesProcessed = 0;
 
   for await (const chunk of stream) {
     hasher.update(chunk);
+    bytesProcessed += chunk.length;
+
+    if (progressOptions?.onProgress && totalBytes !== undefined) {
+      progressOptions.onProgress(bytesProcessed, totalBytes);
+    }
   }
 
   return hasher.digest().toString('hex').toLowerCase();
 }
 
 /**
- * Calculate hash using specified algorithm
+ * Options for hashFile with progress support
+ */
+export interface HashFileOptions extends HashProgressOptions {
+  /** Algorithm to use (default: blake3) */
+  algorithm?: Algorithm;
+}
+
+/**
+ * Calculate hash using specified algorithm with optional progress callback
  */
 export async function hashFile(
   filePath: string,
-  algorithm: Algorithm = 'blake3'
+  algorithmOrOptions: Algorithm | HashFileOptions = 'blake3'
 ): Promise<HashResult> {
+  // Handle both legacy (algorithm string) and new (options object) signatures
+  const options: HashFileOptions = typeof algorithmOrOptions === 'string'
+    ? { algorithm: algorithmOrOptions }
+    : algorithmOrOptions;
+
+  const algorithm = options.algorithm ?? 'blake3';
+  const progressOptions: HashProgressOptions = {
+    onProgress: options.onProgress,
+    totalBytes: options.totalBytes,
+  };
+
   const startTime = performance.now();
   const stats = await fsp.stat(filePath);
+
+  // Pre-populate totalBytes to avoid re-stat in individual hash functions
+  if (progressOptions.onProgress && progressOptions.totalBytes === undefined) {
+    progressOptions.totalBytes = stats.size;
+  }
 
   let hash: string;
 
   switch (algorithm) {
     case 'blake3':
-      hash = await hashBlake3(filePath, { full: false });
+      hash = await hashBlake3(filePath, { full: false, ...progressOptions });
       break;
     case 'blake3-full':
-      hash = await hashBlake3(filePath, { full: true });
+      hash = await hashBlake3(filePath, { full: true, ...progressOptions });
       break;
     case 'sha256':
-      hash = await hashSha256(filePath);
+      hash = await hashSha256(filePath, progressOptions);
       break;
     case 'sha512':
-      hash = await hashSha512(filePath);
+      hash = await hashSha512(filePath, progressOptions);
       break;
     case 'md5':
-      hash = await hashMd5(filePath);
+      hash = await hashMd5(filePath, progressOptions);
       break;
     case 'xxhash64':
-      hash = await hashXxhash64(filePath);
+      hash = await hashXxhash64(filePath, progressOptions);
       break;
     default:
       throw new Error(`Unknown algorithm: ${algorithm}`);
@@ -380,4 +512,139 @@ export async function verifyFile(
     actual: result.hash,
     algorithm
   };
+}
+
+/**
+ * Progress callback for batch operations
+ * Provides aggregated byte-level progress across all files
+ */
+export type BatchProgressCallback = (
+  bytesProcessed: number,
+  totalBytes: number,
+  filesCompleted: number,
+  totalFiles: number,
+  currentFile: string
+) => void;
+
+/**
+ * Options for batch hashing with byte-level progress
+ */
+export interface HashBatchOptions {
+  /** Algorithm to use (default: blake3) */
+  algorithm?: Algorithm;
+  /** Full hash (64 chars for blake3) */
+  full?: boolean;
+  /** Byte-level progress callback - fires per-chunk for smooth UI updates */
+  onProgress?: BatchProgressCallback;
+  /** Abort signal for cancellation */
+  signal?: AbortSignal;
+}
+
+/**
+ * Result of batch hash operation
+ */
+export interface HashBatchResult {
+  path: string;
+  hash: string | null;
+  error: string | null;
+  size: number;
+}
+
+/**
+ * Hash multiple files with aggregated byte-level progress
+ * Provides smooth progress updates by firing per-chunk across all files
+ *
+ * @example
+ * ```ts
+ * await hashBatch(files, {
+ *   onProgress: (bytesProcessed, totalBytes, filesCompleted, totalFiles, currentFile) => {
+ *     const percent = (bytesProcessed / totalBytes) * 100;
+ *     console.log(`${percent.toFixed(1)}% - ${currentFile}`);
+ *   }
+ * });
+ * ```
+ */
+export async function hashBatch(
+  filePaths: string[],
+  options: HashBatchOptions = {}
+): Promise<HashBatchResult[]> {
+  const { algorithm = 'blake3', full = false, onProgress, signal } = options;
+  const results: HashBatchResult[] = [];
+
+  // Calculate total bytes upfront for accurate progress
+  let totalBytes = 0;
+  const fileSizes: number[] = [];
+
+  for (const filePath of filePaths) {
+    try {
+      const stats = await fsp.stat(filePath);
+      fileSizes.push(stats.size);
+      totalBytes += stats.size;
+    } catch {
+      fileSizes.push(0);
+    }
+  }
+
+  let bytesProcessed = 0;
+  let filesCompleted = 0;
+
+  for (let i = 0; i < filePaths.length; i++) {
+    if (signal?.aborted) {
+      throw new Error('Hashing cancelled');
+    }
+
+    const filePath = filePaths[i];
+    const fileSize = fileSizes[i];
+    const fileBytesStart = bytesProcessed;
+
+    try {
+      // Create per-file progress callback that aggregates into batch progress
+      const fileProgressCallback: HashProgressCallback | undefined = onProgress
+        ? (fileBytesProcessed: number, _fileTotalBytes: number) => {
+            onProgress(
+              fileBytesStart + fileBytesProcessed,
+              totalBytes,
+              filesCompleted,
+              filePaths.length,
+              filePath
+            );
+          }
+        : undefined;
+
+      let hash: string;
+      if (algorithm === 'blake3' || algorithm === 'blake3-full') {
+        hash = await hashBlake3(filePath, {
+          full: full || algorithm === 'blake3-full',
+          onProgress: fileProgressCallback,
+          totalBytes: fileSize,
+        });
+      } else {
+        hash = await hashFile(filePath, {
+          algorithm,
+          onProgress: fileProgressCallback,
+          totalBytes: fileSize,
+        }).then(r => r.hash);
+      }
+
+      results.push({ path: filePath, hash, error: null, size: fileSize });
+      bytesProcessed += fileSize;
+      filesCompleted++;
+
+      // Final progress update for this file
+      if (onProgress) {
+        onProgress(bytesProcessed, totalBytes, filesCompleted, filePaths.length, filePath);
+      }
+    } catch (err) {
+      const error = err instanceof Error ? err.message : String(err);
+      results.push({ path: filePath, hash: null, error, size: fileSize });
+      bytesProcessed += fileSize;
+      filesCompleted++;
+
+      if (onProgress) {
+        onProgress(bytesProcessed, totalBytes, filesCompleted, filePaths.length, filePath);
+      }
+    }
+  }
+
+  return results;
 }

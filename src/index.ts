@@ -20,11 +20,22 @@ export {
   hashBuffer,
   hashString,
   hashFileAll,
+  hashBatch,
   verifyFile,
   findNativeB3sum,
   hasNativeB3sum,
   setHasherMode,
   getHasherMode
+} from './core/hasher.js';
+
+export type {
+  HashProgressCallback,
+  HashProgressOptions,
+  HashBlake3Options,
+  HashFileOptions,
+  BatchProgressCallback,
+  HashBatchOptions,
+  HashBatchResult
 } from './core/hasher.js';
 
 export type { Algorithm, HashResult } from './schemas/index.js';
@@ -67,7 +78,13 @@ export {
   fastHashBatch
 } from './core/fast-hasher.js';
 
-export type { FastHashOptions, FastHashResult } from './core/fast-hasher.js';
+export type {
+  FastHashOptions,
+  FastHashResult,
+  BatchHashOptions,
+  BatchFileProgressCallback,
+  BatchByteProgressCallback
+} from './core/fast-hasher.js';
 
 // ============================================
 // IMPORT PIPELINE

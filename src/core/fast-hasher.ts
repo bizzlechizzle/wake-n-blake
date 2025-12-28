@@ -156,26 +156,76 @@ async function hashRegion(
 }
 
 /**
- * Batch fast hash multiple files
+ * Progress callback types for batch operations
+ */
+export type BatchFileProgressCallback = (current: number, total: number, file: string) => void;
+export type BatchByteProgressCallback = (bytesProcessed: number, totalBytes: number, currentFile: string) => void;
+
+/**
+ * Options for batch hashing with progress
+ */
+export interface BatchHashOptions extends FastHashOptions {
+  /** File-level progress: called when each file completes */
+  onFileProgress?: BatchFileProgressCallback;
+  /** Byte-level progress: called per-chunk with aggregated bytes across all files */
+  onByteProgress?: BatchByteProgressCallback;
+}
+
+/**
+ * Batch fast hash multiple files with optional byte-level progress
  */
 export async function fastHashBatch(
   files: string[],
-  options: FastHashOptions = {},
-  onProgress?: (current: number, total: number, file: string) => void
+  options: FastHashOptions | BatchHashOptions = {},
+  onProgress?: BatchFileProgressCallback
 ): Promise<FastHashResult[]> {
   const results: FastHashResult[] = [];
 
+  // Support both legacy and new progress callbacks
+  const batchOptions = options as BatchHashOptions;
+  const fileProgressCallback = onProgress ?? batchOptions.onFileProgress;
+  const byteProgressCallback = batchOptions.onByteProgress;
+
+  // If byte-level progress requested, calculate total bytes upfront
+  let totalBytes = 0;
+  let bytesProcessed = 0;
+  const fileSizes: number[] = [];
+
+  if (byteProgressCallback) {
+    for (const file of files) {
+      try {
+        const stats = await fs.promises.stat(file);
+        fileSizes.push(stats.size);
+        totalBytes += stats.size;
+      } catch {
+        fileSizes.push(0);
+      }
+    }
+  }
+
   for (let i = 0; i < files.length; i++) {
     const file = files[i];
-    if (onProgress) {
-      onProgress(i + 1, files.length, file);
+    const fileSize = fileSizes[i] ?? 0;
+
+    if (fileProgressCallback) {
+      fileProgressCallback(i + 1, files.length, file);
     }
 
     try {
       const result = await fastHash(file, options);
       results.push(result);
+
+      // Update byte progress after file completes
+      if (byteProgressCallback) {
+        bytesProcessed += fileSize;
+        byteProgressCallback(bytesProcessed, totalBytes, file);
+      }
     } catch {
-      // Skip files we can't hash
+      // Skip files we can't hash, but still count their bytes for progress
+      if (byteProgressCallback) {
+        bytesProcessed += fileSize;
+        byteProgressCallback(bytesProcessed, totalBytes, file);
+      }
     }
   }
 
